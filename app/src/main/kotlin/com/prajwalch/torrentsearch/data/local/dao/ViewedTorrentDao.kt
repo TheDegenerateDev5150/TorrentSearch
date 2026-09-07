@@ -6,7 +6,6 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 import com.prajwalch.torrentsearch.data.local.entities.ViewedTorrentEntity
-
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -15,7 +14,7 @@ interface ViewedTorrentDao {
     suspend fun insertViewedTorrent(entity: ViewedTorrentEntity)
 
     @Query("SELECT id FROM viewed_torrents")
-    fun getAllViewedHashes(): Flow<List<String>>
+    fun getAllViewedIds(): Flow<List<String>>
 
     @Query("DELETE FROM viewed_torrents")
     suspend fun deleteAllViewedTorrents()

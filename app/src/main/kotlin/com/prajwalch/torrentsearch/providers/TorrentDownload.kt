@@ -35,7 +35,7 @@ class TorrentDownload(private val networkClient: NetworkClient) :
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = TorrentDownloadResultsParser(name)
+    private val resultsPageParser = TorrentDownloadResultsParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -68,7 +68,10 @@ class TorrentDownload(private val networkClient: NetworkClient) :
     }
 }
 
-private class TorrentDownloadResultsParser(private val providerName: String) {
+private class TorrentDownloadResultsParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             val html = Jsoup.parse(html, pageUrl)
@@ -89,6 +92,7 @@ private class TorrentDownloadResultsParser(private val providerName: String) {
             .takeLastWhile { it != '/' }
             .trim()
             .lowercase()
+        val torrentId = TorrentUtils.createTorrentId(providerId = providerId, sourceId = infoHash)
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.replace(",", "")?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.ownText()?.replace(",", "")?.toUIntOrNull()
@@ -100,7 +104,7 @@ private class TorrentDownloadResultsParser(private val providerName: String) {
             ?.let(::categoryFromRawString)
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

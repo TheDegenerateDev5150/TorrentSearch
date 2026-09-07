@@ -36,7 +36,7 @@ class TorrentDownloads(private val networkClient: NetworkClient) : SearchProvide
     override val isCloudflareProtected = true
     override val enabledByDefault = true
 
-    private val resultsPageParser = TorrentDownloadsResultsPageParser(name, networkClient)
+    private val resultsPageParser = TorrentDownloadsResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -108,6 +108,7 @@ class TorrentDownloads(private val networkClient: NetworkClient) : SearchProvide
 }
 
 private class TorrentDownloadsResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -145,6 +146,7 @@ private class TorrentDownloadsResultsPageParser(
             pageUrl = detailsPageUrl,
         ) ?: return null
 
+        val torrentId = TorrentUtils.createTorrentId(providerId, detailsPageUrl)
         val size = torrentDetails.size
             ?: listItem.selectFirst(SIZE)?.ownText()
         val seeders = torrentDetails.seeders
@@ -158,7 +160,7 @@ private class TorrentDownloadsResultsPageParser(
                 ?.let(::getCategoryFromCategoryIconUrl)
 
         return Torrent(
-            infoHash = torrentDetails.infoHash,
+            id = torrentId,
             name = torrentDetails.name,
             size = size,
             seeders = seeders,

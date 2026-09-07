@@ -31,7 +31,7 @@ class TorznabSearchProvider(
     private val tag = "$BASE_TAG($name)"
 
     /** The XML parser for the response. */
-    private val resultsXmlParser = TorznabResultsXmlParser(providerName = name)
+    private val resultsXmlParser = TorznabResultsXmlParser(providerId = id, providerName = name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         Log.d(tag, "search")

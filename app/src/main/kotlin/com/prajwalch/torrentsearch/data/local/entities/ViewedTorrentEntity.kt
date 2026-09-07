@@ -9,10 +9,10 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "viewed_torrents")
 data class ViewedTorrentEntity(
-    /** The unique info hash of the torrent */
+    /** The unique id of the torrent */
     @PrimaryKey
     @ColumnInfo(name = "id")
-    val infoHash: String,
+    val id: String,
     /** Timestamp when the torrent was viewed. */
     val viewedAt: Long = System.currentTimeMillis(),
 )

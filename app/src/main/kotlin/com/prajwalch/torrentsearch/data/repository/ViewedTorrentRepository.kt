@@ -12,20 +12,18 @@ import kotlinx.coroutines.flow.map
  * Repository for managing viewed torrents.
  * Provides methods to mark torrents as viewed and retrieve viewed torrent IDs.
  */
-class ViewedTorrentRepository(
-    private val dao: ViewedTorrentDao,
-) {
+class ViewedTorrentRepository(private val dao: ViewedTorrentDao) {
     /**
      * Returns a Flow of all viewed torrent hashes as a Set for efficient lookups.
      */
-    fun getAllViewedHashes(): Flow<Set<String>> = dao.getAllViewedHashes().map { it.toSet() }
+    fun getAllViewedIds(): Flow<Set<String>> = dao.getAllViewedIds().map { it.toSet() }
 
     /**
-     * Marks a torrent as viewed by storing its info hash.
+     * Marks a torrent as viewed by storing its ID.
      */
-    suspend fun markAsViewed(infoHash: String) {
-        Log.d(TAG, "Marking torrent as viewed: $infoHash")
-        dao.insertViewedTorrent(ViewedTorrentEntity(infoHash = infoHash))
+    suspend fun markAsViewed(id: String) {
+        Log.d(TAG, "Marking torrent as viewed: $id")
+        dao.insertViewedTorrent(ViewedTorrentEntity(id))
     }
 
     /**
@@ -37,6 +35,6 @@ class ViewedTorrentRepository(
     }
 
     private companion object {
-        private const val TAG = "ViewedTorrentsRepository"
+        private const val TAG = "ViewedTorrentRepository"
     }
 }

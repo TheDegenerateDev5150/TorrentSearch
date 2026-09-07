@@ -24,7 +24,7 @@ class Eztv(private val networkClient: NetworkClient) : SearchProvider, TorrentDe
     override val isCloudflareProtected = true
     override val enabledByDefault = true
 
-    private val resultsPageParser = EztvResultsPageParser(name)
+    private val resultsPageParser = EztvResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "$url/search/$query"
@@ -43,7 +43,10 @@ class Eztv(private val networkClient: NetworkClient) : SearchProvider, TorrentDe
     }
 }
 
-private class EztvResultsPageParser(private val providerName: String) {
+private class EztvResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
@@ -55,13 +58,17 @@ private class EztvResultsPageParser(private val providerName: String) {
     private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
         val magnetUri = listItem.selectFirst(MAGNET_URI)?.attr("href") ?: return null
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
         val fileDownloadLink = listItem.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

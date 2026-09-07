@@ -27,11 +27,7 @@ class BangumiMoe(private val networkClient: NetworkClient) : SearchProvider, Lat
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsJsonParser =
-        BangumiMoeResultsJsonParser(
-            providerName = name,
-            providerUrl = url,
-        )
+    private val resultsJsonParser = BangumiMoeResultsJsonParser(id, name, url)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "$url/api/v2/torrent/search"
@@ -87,6 +83,7 @@ class BangumiMoe(private val networkClient: NetworkClient) : SearchProvider, Lat
 }
 
 private class BangumiMoeResultsJsonParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val providerUrl: String,
 ) {
@@ -101,15 +98,21 @@ private class BangumiMoeResultsJsonParser(
     private fun parseTorrentObject(obj: JsonObject): Torrent? {
         val torrentName = obj.getString("title") ?: return null
         val magnetUri = obj.getString("magnet") ?: return null
-        val infoHash = obj.getString("infohash") ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
+
+        val torrentRemoteId = obj.getString("_id")
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         val size = obj.getString("size")
         val seeders = obj.getUInt("seeders")
         val peers = obj.getUInt("leechers")
         val uploadDate = obj.getString("publish_time")?.let(TorrentDateParser::parseIso)
-        val detailsPageUrl = obj.getString("_id")?.let { "$providerUrl/torrent/$it" }
+        val detailsPageUrl = torrentRemoteId?.let { "$providerUrl/torrent/$it" }
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             magnetUri = magnetUri,
             name = torrentName,
             size = size,

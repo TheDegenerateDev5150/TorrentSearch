@@ -128,7 +128,7 @@ fun SearchScreen(
                     )
                 } else {
                     viewModel.downloadTorrentFileUsingInfoHash(
-                        infoHash = torrent.infoHash,
+                        infoHash = "",
                         fileName = torrent.name,
                     )
                 }
@@ -299,13 +299,13 @@ fun SearchScreen(
                             searchResults = uiState.searchResults.torrents,
                             onResultClick = {
                                 selectedResult = it
-                                viewModel.markAsViewed(it.infoHash)
+                                viewModel.markAsViewed(it.id)
                             },
                             searchQuery = uiState.searchParams.query,
                             searchCategory = uiState.searchParams.category,
                             isRefreshing = searchState is SearchState.ResultsAvailable.Refreshing,
                             onRefresh = viewModel::refreshSearchResults,
-                            viewedTorrentHashes = uiState.viewedTorrentHashes,
+                            viewedTorrentIds = uiState.viewedTorrentIds,
                             lazyListState = torrentListState.lazyListState,
                         )
                     }

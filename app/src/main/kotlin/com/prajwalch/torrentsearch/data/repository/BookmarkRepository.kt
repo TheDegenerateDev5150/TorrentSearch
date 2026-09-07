@@ -4,9 +4,9 @@ import android.util.Log
 
 import com.prajwalch.torrentsearch.data.local.dao.BookmarkedTorrentDao
 import com.prajwalch.torrentsearch.data.local.entities.BookmarkedTorrentEntity
-import com.prajwalch.torrentsearch.domain.model.BookmarkedTorrent
 import com.prajwalch.torrentsearch.domain.model.Category
 import com.prajwalch.torrentsearch.domain.model.Torrent
+import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +24,7 @@ import java.io.OutputStream
 import java.time.Instant
 
 class BookmarkRepository(private val dao: BookmarkedTorrentDao) {
-    fun getAllBookmarks(): Flow<List<BookmarkedTorrent>> {
+    fun getAllBookmarks(): Flow<List<Torrent>> {
         return dao.getAllBookmarks().map { it.toDomain() }
     }
 
@@ -33,10 +33,10 @@ class BookmarkRepository(private val dao: BookmarkedTorrentDao) {
     }
 
     suspend fun bookmarkTorrent(torrent: Torrent) {
-        dao.insertBookmark(bookmarkedTorrent = torrent.toEntity())
+        dao.insertBookmark(torrent.toEntity())
     }
 
-    suspend fun deleteBookmarkById(id: Long) {
+    suspend fun deleteBookmarkById(id: String) {
         dao.deleteBookmarkById(id)
     }
 
@@ -80,26 +80,24 @@ class BookmarkRepository(private val dao: BookmarkedTorrentDao) {
 }
 
 private fun BookmarkedTorrentEntity.toDomain() =
-    BookmarkedTorrent(
+    Torrent(
         id = this.id,
-        torrent = Torrent(
-            infoHash = this.infoHash,
-            name = this.name,
-            size = this.size,
-            seeders = this.seeders?.toUInt(),
-            peers = this.peers?.toUInt(),
-            providerName = this.providerName,
-            uploadDate = this.uploadDate?.let(Instant::ofEpochMilli),
-            category = this.category?.let(Category::valueOf),
-            descriptionPageUrl = this.descriptionPageUrl,
-            magnetUri = this.magnetUri,
-            fileDownloadLink = this.fileDownloadLink,
-        ),
+        name = this.name,
+        size = this.size,
+        seeders = this.seeders?.toUInt(),
+        peers = this.peers?.toUInt(),
+        providerName = this.providerName,
+        uploadDate = this.uploadDate?.let(Instant::ofEpochMilli),
+        category = this.category?.let(Category::valueOf),
+        descriptionPageUrl = this.descriptionPageUrl,
+        magnetUri = this.magnetUri,
+        fileDownloadLink = this.fileDownloadLink,
     )
 
 private fun Torrent.toEntity() =
     BookmarkedTorrentEntity(
-        infoHash = this.infoHash,
+        id = this.id,
+        infoHash = this.magnetUri?.let { TorrentUtils.getInfoHashFromMagnetUri(it) } ?: "",
         name = this.name,
         size = this.size,
         seeders = this.seeders?.toInt(),

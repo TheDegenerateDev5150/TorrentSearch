@@ -27,7 +27,7 @@ class XXXClub(private val networkClient: NetworkClient) :
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = XXXClubResultsPageParser(name, networkClient)
+    private val resultsPageParser = XXXClubResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "${url}/torrents/search/all/$query"
@@ -57,6 +57,7 @@ class XXXClub(private val networkClient: NetworkClient) :
 }
 
 private class XXXClubResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -81,6 +82,10 @@ private class XXXClubResultsPageParser(
             pageUrl = detailsPageUrl,
         ) ?: return null
 
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = detailsPageUrl,
+        )
         val name = listItem.selectFirst(NAME)?.text() ?: return null
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
@@ -90,7 +95,7 @@ private class XXXClubResultsPageParser(
             ?.let { TorrentDateParser.parse(date = it, format = "dd MMM yyyy HH:mm:ss") }
 
         return Torrent(
-            infoHash = torrentDetails.infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

@@ -22,7 +22,7 @@ class TorrentKitty(private val networkClient: NetworkClient) : SearchProvider,
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = TorrentKittyResultsPageParser(name)
+    private val resultsPageParser = TorrentKittyResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "$url/search/$query"
@@ -37,7 +37,10 @@ class TorrentKitty(private val networkClient: NetworkClient) : SearchProvider,
     }
 }
 
-private class TorrentKittyResultsPageParser(private val providerName: String) {
+private class TorrentKittyResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
@@ -49,6 +52,10 @@ private class TorrentKittyResultsPageParser(private val providerName: String) {
     private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
         val magnetUri = listItem.selectFirst(MAGNET_URI)?.attr("href") ?: return null
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
         val size = listItem.selectFirst(SIZE)?.ownText()?.uppercase()
         val uploadDate = listItem.selectFirst(UPLOAD_DATE)?.ownText()?.let {
             TorrentDateParser.parse(date = it, format = UPLOAD_DATE_FORMAT)
@@ -57,7 +64,7 @@ private class TorrentKittyResultsPageParser(private val providerName: String) {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             uploadDate = uploadDate,

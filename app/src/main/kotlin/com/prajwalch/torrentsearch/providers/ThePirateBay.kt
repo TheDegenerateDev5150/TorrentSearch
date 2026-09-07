@@ -42,10 +42,7 @@ class ThePirateBay(private val networkClient: NetworkClient) :
     override val enabledByDefault = false
     override val alternateUrlDomains = listOf("https://knaben.xyz/thepiratebay/")
 
-    private val resultsJsonParser = TBPResultsJsonParser(
-        providerName = name,
-        providerUrl = url,
-    )
+    private val resultsJsonParser = TBPResultsJsonParser(id, name, url)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -119,6 +116,7 @@ class ThePirateBay(private val networkClient: NetworkClient) :
 }
 
 private class TBPResultsJsonParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val providerUrl: String,
 ) {
@@ -154,10 +152,14 @@ private class TBPResultsJsonParser(
             return null
         }
 
-        val id = torrentObject.getString("id") ?: return null
-        val descriptionPageUrl = "$providerUrl/description.php?id=$id"
+        val torrentRemoteId = torrentObject.getString("id") ?: return null
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId,
+        )
+        val descriptionPageUrl = "$providerUrl/description.php?id=$torrentRemoteId"
 
-        val infoHash = torrentObject.getString("info_hash")?.lowercase()?.trim() ?: return null
+//        val infoHash = torrentObject.getString("info_hash")?.lowercase()?.trim() ?: return null
         val sizeBytes = torrentObject.getString("size") ?: return null
         val size = FileSizeUtils.formatBytes(bytes = sizeBytes)
         val seeders = torrentObject.getString("seeders")?.toUIntOrNull() ?: return null
@@ -172,7 +174,7 @@ private class TBPResultsJsonParser(
         val category = categoryFromId(categoryId.toInt())
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

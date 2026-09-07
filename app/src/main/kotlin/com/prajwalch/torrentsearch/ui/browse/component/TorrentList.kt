@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 
@@ -27,7 +28,7 @@ fun TorrentList(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
-    viewedTorrentHashes: Set<String> = emptySet(),
+    viewedTorrentIds: Set<String> = emptySet(),
     lazyListState: LazyListState = rememberLazyListState(),
 ) {
     PullToRefreshBox(
@@ -44,8 +45,8 @@ fun TorrentList(
                 TorrentsCount(torrents.size)
             }
 
-            items(items = torrents, contentType = { it.category }) { torrent ->
-                val isViewed = torrent.infoHash in viewedTorrentHashes
+            items(items = torrents, key = { it.id }, contentType = { it.category }) { torrent ->
+                val isViewed = remember(viewedTorrentIds) { torrent.id in viewedTorrentIds }
                 val listItemAlpha = if (isViewed) 0.6f else 1f
 
                 TorrentListItem(

@@ -44,8 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.constant.TorrentSearchConstants
-import com.prajwalch.torrentsearch.domain.model.BookmarkedTorrent
 import com.prajwalch.torrentsearch.domain.model.MagnetUri
+import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.ui.TorrentFileDownloadEffect
 import com.prajwalch.torrentsearch.ui.bookmarks.component.BookmarkList
 import com.prajwalch.torrentsearch.ui.bookmarks.component.BookmarksScreenTopBar
@@ -105,11 +105,9 @@ fun BookmarksScreen(
         if (bookmarksState is BookmarksState.Ready) bookmarksState.bookmarks.size else 0
     })
 
-    var selectedBookmark by retain { mutableStateOf<BookmarkedTorrent?>(null) }
+    var selectedBookmark by retain { mutableStateOf<Torrent?>(null) }
     selectedBookmark?.let { bookmark ->
         val bookmarkId = bookmark.id
-        val bookmark = bookmark.torrent
-
         val clipboard = LocalClipboard.current
         val magnetLinkCopiedMessage = stringResource(
             R.string.torrent_list_magnet_link_copied_message
@@ -132,7 +130,7 @@ fun BookmarksScreen(
                     )
                 } else {
                     viewModel.downloadTorrentFileUsingInfoHash(
-                        infoHash = bookmark.infoHash,
+                        infoHash = "",
                         fileName = bookmark.name,
                     )
                 }
@@ -244,7 +242,7 @@ fun BookmarksScreen(
             modifier = Modifier.padding(innerPadding),
             bookmarksState = uiState.bookmarksState,
             onBookmarkClick = { selectedBookmark = it },
-            onDeleteBookmark = { viewModel.deleteBookmarkById(it.id) },
+            onDeleteBookmark = { viewModel.deleteBookmarkById(it) },
             showSearchBar = showSearchBar,
             textFieldState = textFieldState,
             showSwipeDeleteTip = uiState.showSwipeDeleteTip,
@@ -257,8 +255,8 @@ fun BookmarksScreen(
 @Composable
 private fun BookmarksScreenContent(
     bookmarksState: BookmarksState,
-    onBookmarkClick: (BookmarkedTorrent) -> Unit,
-    onDeleteBookmark: (BookmarkedTorrent) -> Unit,
+    onBookmarkClick: (Torrent) -> Unit,
+    onDeleteBookmark: (id: String) -> Unit,
     showSearchBar: Boolean,
     textFieldState: TextFieldState,
     showSwipeDeleteTip: Boolean,

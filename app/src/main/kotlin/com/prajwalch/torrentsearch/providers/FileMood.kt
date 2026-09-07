@@ -21,7 +21,7 @@ class FileMood(private val networkClient: NetworkClient) : SearchProvider, Torre
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = FileMoodResultsPageParser(name)
+    private val resultsPageParser = FileMoodResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -40,7 +40,10 @@ class FileMood(private val networkClient: NetworkClient) : SearchProvider, Torre
     }
 }
 
-private class FileMoodResultsPageParser(private val providerName: String) {
+private class FileMoodResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup
@@ -51,21 +54,23 @@ private class FileMoodResultsPageParser(private val providerName: String) {
 
     private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(NAME)?.text() ?: return null
+        val descriptionPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)
+            ?.attr("abs:href")
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        val infoHash = descriptionPageUrl
+            .removeSuffix(".html")
+            .takeLastWhile { it != '-' }
+            .lowercase()
+            .trim()
+        val torrentId = TorrentUtils.createTorrentId(providerId, infoHash)
         val size = listItem.selectFirst(SIZE)?.text()
         val (seeders, peers) = listItem.selectFirst(SEEDERS_PEERS)?.text()
             ?.split('/')
             ?: listOf(null, null)
-        val descriptionPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)
-            ?.attr("abs:href")
-            ?.takeIf { it.isNotBlank() }
-        val infoHash = descriptionPageUrl
-            ?.removeSuffix(".html")
-            ?.takeLastWhile { it != '-' }
-            ?.lowercase()
-            ?.trim()
 
         return Torrent(
-            infoHash = infoHash ?: return null,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders?.toUIntOrNull(),

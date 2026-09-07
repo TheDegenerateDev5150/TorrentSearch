@@ -54,7 +54,7 @@ class Ext(private val networkClient: NetworkClient) : SearchProvider, LatestTorr
         Category.Porn to 10,
         Category.Series to 2,
     )
-    private val resultsPageParser = ExtResultsPageParser(name, networkClient)
+    private val resultsPageParser = ExtResultsPageParser(id, name)
     private val detailsPageParser = ExtDetailsPageParser(networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -117,29 +117,19 @@ class Ext(private val networkClient: NetworkClient) : SearchProvider, LatestTorr
 }
 
 private class ExtResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
-            val html = Jsoup.parse(html, pageUrl)
-            val sessionId = html.selectFirst(SESSION_ID)?.attr("content")
-            val pageToken = extractSearchPageToken(html)
-
-            html.select(LIST_ITEM)
-                .mapNotNull {
-                    async {
-                        parseListItem(
-                            listItem = it,
-                            sessionId = sessionId,
-                            pageToken = pageToken
-                        )
-                    }
-                }
+            Jsoup.parse(html, pageUrl)
+                .select(LIST_ITEM)
+                .mapNotNull { async { parseListItem(it) } }
                 .awaitAll()
                 .filterNotNull()
         }
 
+    /*
     private fun extractSearchPageToken(html: Document): String? {
         return html.select("script")
             .map { it.data().trim() }
@@ -148,15 +138,13 @@ private class ExtResultsPageParser(
             ?.removeSuffix("';")
             ?.takeLastWhile { it != '\'' }
     }
+     */
 
-    private suspend fun parseListItem(
-        listItem: Element,
-        sessionId: String?,
-        pageToken: String?,
-    ): Torrent? {
-        val torrentId = listItem.selectFirst(TORRENT_ID)?.attr("data-id") ?: return null
-        val magnetUri = getMagnetUri(torrentId, sessionId, pageToken) ?: return null
+    private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.text() ?: return null
+        val torrentRemoteId = listItem.selectFirst(TORRENT_ID)?.attr("data-id") ?: return null
+        val torrentId = TorrentUtils.createTorrentId(providerId, torrentRemoteId)
+//        val magnetUri = getMagnetUri(torrentRemoteId, sessionId, pageToken) ?: return null
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
@@ -170,7 +158,7 @@ private class ExtResultsPageParser(
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,
@@ -182,6 +170,7 @@ private class ExtResultsPageParser(
         )
     }
 
+    /*
     private suspend fun getMagnetUri(
         torrentId: String,
         sessionId: String?,
@@ -208,9 +197,10 @@ private class ExtResultsPageParser(
             .asObject()
             .getString("url")
     }
+     */
 
     private companion object {
-        private const val SESSION_ID = """meta[name="csrf-token"]"""
+        //        private const val SESSION_ID = """meta[name="csrf-token"]"""
         private const val LIST_ITEM = "table.search-table > tbody > tr"
         private const val TORRENT_NAME = "td:nth-child(1) > div:nth-child(1) > a.torrent-title-link"
         private const val SIZE = "td:nth-child(2) > div > span:nth-child(2)"

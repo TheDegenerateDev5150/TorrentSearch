@@ -40,7 +40,7 @@ class OxTorrent(private val networkClient: NetworkClient) : SearchProvider, Late
         Category.Music to "musique",
         Category.Series to "series",
     )
-    private val resultsPageParser = OxTorrentResultsPageParser(name, networkClient)
+    private val resultsPageParser = OxTorrentResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -76,6 +76,7 @@ class OxTorrent(private val networkClient: NetworkClient) : SearchProvider, Late
 }
 
 private class OxTorrentResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -97,7 +98,7 @@ private class OxTorrentResultsPageParser(
         ) ?: return null
 
         return Torrent(
-            infoHash = torrentDetails.infoHash,
+            id = TorrentUtils.createTorrentId(providerId, detailsPageUrl),
             name = torrentDetails.name,
             size = torrentDetails.size,
             seeders = torrentDetails.seeders,

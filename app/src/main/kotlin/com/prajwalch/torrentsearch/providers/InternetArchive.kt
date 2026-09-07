@@ -31,10 +31,7 @@ class InternetArchive(private val networkClient: NetworkClient) : SearchProvider
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsJsonParser = IAResultsJsonParser(
-        providerName = name,
-        providerUrl = url,
-    )
+    private val resultsJsonParser = IAResultsJsonParser(id, name, url)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -87,6 +84,7 @@ class InternetArchive(private val networkClient: NetworkClient) : SearchProvider
 }
 
 private class IAResultsJsonParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val providerUrl: String,
 ) {
@@ -99,18 +97,21 @@ private class IAResultsJsonParser(
 
     private fun parseDocObject(obj: JsonObject): Torrent? {
         val name = obj.getString("title") ?: return null
-        val size = obj.getLong("item_size")
-            ?.let { FileSizeUtils.formatBytes(it.toFloat()) }
-            ?: return null
-        val uploadDate = obj.getString("publicdate")?.let(TorrentDateParser::parseIso)
-        val category = obj.getString("mediatype")?.let(::categoryFromMediaType) ?: return null
-        val descriptionPageUrl = obj.getString("identifier")
-            ?.let { "$providerUrl/details/$it" }
-            ?: return null
         val infoHash = obj.getString("btih")?.lowercase()?.trim() ?: return null
 
+        val torrentRemoteId = obj.getString("identifier")
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: infoHash,
+        )
+
+        val size = obj.getLong("item_size")?.let { FileSizeUtils.formatBytes(it.toFloat()) }
+        val uploadDate = obj.getString("publicdate")?.let(TorrentDateParser::parseIso)
+        val category = obj.getString("mediatype")?.let(::categoryFromMediaType)
+        val descriptionPageUrl = torrentRemoteId?.let { "$providerUrl/details/$it" }
+
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             uploadDate = uploadDate,

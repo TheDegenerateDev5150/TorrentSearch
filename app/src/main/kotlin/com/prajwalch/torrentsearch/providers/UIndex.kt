@@ -48,9 +48,7 @@ class UIndex(private val networkClient: NetworkClient) : SearchProvider, Torrent
         Category.Other to 8,
     )
 
-    private val resultsPageParser = UIndexResultsPageParser(
-        providerName = name,
-    )
+    private val resultsPageParser = UIndexResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -95,7 +93,10 @@ class UIndex(private val networkClient: NetworkClient) : SearchProvider, Torrent
     }
 }
 
-private class UIndexResultsPageParser(private val providerName: String) {
+private class UIndexResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
@@ -117,8 +118,14 @@ private class UIndexResultsPageParser(private val providerName: String) {
         val category = listItem.selectFirst(CATEGORY)?.ownText()?.let(::categoryFromRawString)
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
+        val torrentRemoteId = detailsPageUrl?.takeLastWhile { it != '=' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

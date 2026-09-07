@@ -45,10 +45,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-import java.io.OutputStream
-
-import kotlin.time.Duration.Companion.seconds
 import org.koin.core.annotation.KoinViewModel
+import java.io.OutputStream
+import kotlin.time.Duration.Companion.seconds
 
 data class SearchUiState(
     val searchParams: SearchParams = SearchParams(),
@@ -56,7 +55,7 @@ data class SearchUiState(
     val searchResults: SearchResults = SearchResults(),
     val sortOptions: SortOptions = SortOptions(),
     val torrentFilter: TorrentFilter = TorrentFilter(),
-    val viewedTorrentHashes: Set<String> = emptySet(),
+    val viewedTorrentIds: Set<String> = emptySet(),
 )
 
 data class SearchParams(
@@ -131,7 +130,7 @@ class SearchViewModel(
     private val resultsProcessor = SearchResultsProcessor(
         searchResults = resultsLoader.searchResults,
         settingsRepository = settingsRepository,
-        viewedTorrentHashes = viewedTorrentRepository.getAllViewedHashes(),
+        viewedTorrentIds = viewedTorrentRepository.getAllViewedIds(),
         initialSelectedCategory = searchParams.category,
     )
 
@@ -144,13 +143,13 @@ class SearchViewModel(
             resultsProcessor.processedSearchResults,
             resultsProcessor.sortOptions,
             resultsProcessor.torrentFilter,
-            viewedTorrentRepository.getAllViewedHashes(),
+            viewedTorrentRepository.getAllViewedIds(),
         ) {
                 searchState,
                 processedResults,
                 sortOptions,
                 viewFilters,
-                viewedTorrentHashes,
+                viewedTorrentIds,
             ->
             SearchUiState(
                 searchParams = searchParams,
@@ -158,7 +157,7 @@ class SearchViewModel(
                 searchResults = processedResults,
                 sortOptions = sortOptions,
                 torrentFilter = viewFilters,
-                viewedTorrentHashes = viewedTorrentHashes,
+                viewedTorrentIds = viewedTorrentIds,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -426,13 +425,13 @@ private class SearchResultsLoader(
  *
  * @param searchResults The flow that emits the [SearchResults].
  * @param settingsRepository The repository from where user-define filter options are fetched.
- * @param viewedTorrentHashes The flow that emits the viewed torrent hashes.
+ * @param viewedTorrentIds The flow that emits the viewed torrent IDs.
  * @param initialSelectedCategory The [Category] to use as an initial value for filter.
  */
 private class SearchResultsProcessor(
     searchResults: Flow<SearchResults>,
     settingsRepository: SettingsRepository,
-    viewedTorrentHashes: Flow<Set<String>>,
+    viewedTorrentIds: Flow<Set<String>>,
     initialSelectedCategory: Category = Category.All,
 ) {
     /**
@@ -481,16 +480,16 @@ private class SearchResultsProcessor(
     val sortOptions: StateFlow<SortOptions> = _sortOptions.asStateFlow()
 
     /**
-     * Hashes of currently viewed torrents that should be hidden when
+     * IDs of currently viewed torrents that should be hidden when
      * 'hide viewed' filter is turned on.
      *
-     * The hashes are captured only when 'hide viewed' filter is enabled to avoid
+     * The IDs are captured only when 'hide viewed' filter is enabled to avoid
      * instant hiding.
      */
-    private val currentlyViewedTorrentHashes: Flow<Set<String>> =
+    private val currentlyViewedTorrentIds: Flow<Set<String>> =
         torrentFilterConfig
             .map { it.hideViewed }
-            .map { if (it) viewedTorrentHashes.firstOrNull().orEmpty() else emptySet() }
+            .map { if (it) viewedTorrentIds.firstOrNull().orEmpty() else emptySet() }
 
     /**
      * The flow that emits the processed [SearchResults].
@@ -501,7 +500,7 @@ private class SearchResultsProcessor(
             torrentFilterConfig,
             _sortOptions,
             settingsRepository.enableNSFWMode,
-            currentlyViewedTorrentHashes,
+            currentlyViewedTorrentIds,
             ::processSearchResults
         ).flowOn(Dispatchers.Default)
 
@@ -536,7 +535,7 @@ private class SearchResultsProcessor(
         filterConfig: TorrentFilterConfig,
         sortOptions: SortOptions,
         nsfwModeEnabled: Boolean,
-        viewedTorrentHashes: Set<String>,
+        viewedTorrentIds: Set<String>,
     ): SearchResults {
         val sortComparator = createSortComparator(
             criteria = sortOptions.criteria,
@@ -548,7 +547,7 @@ private class SearchResultsProcessor(
 
             if (!nsfwModeEnabled) add(TorrentFilters.isSfw())
             if (!filterConfig.showDeadTorrents) add(TorrentFilters.isAlive())
-            if (filterConfig.hideViewed) add(TorrentFilters.notViewed(viewedTorrentHashes))
+            if (filterConfig.hideViewed) add(TorrentFilters.notViewed(viewedTorrentIds))
             if (filterConfig.query.isNotBlank())
                 add(TorrentFilters.matchesQuery(filterConfig.query))
             if (filterConfig.category != Category.All)

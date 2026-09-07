@@ -30,7 +30,7 @@ class Dmhy(private val networkClient: NetworkClient) : SearchProvider, TorrentDe
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = DmhyResultsPageParser(providerName = name)
+    private val resultsPageParser = DmhyResultsPageParser(id, name)
     private val categoryMap = mapOf(
         Category.All to 0,
         Category.Anime to 2,
@@ -76,7 +76,10 @@ class Dmhy(private val networkClient: NetworkClient) : SearchProvider, TorrentDe
     }
 }
 
-private class DmhyResultsPageParser(private val providerName: String) {
+private class DmhyResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup
@@ -88,18 +91,24 @@ private class DmhyResultsPageParser(private val providerName: String) {
     private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
         val magnetUri = listItem.selectFirst(MAGNET_URI)?.attr("href") ?: return null
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
         val size = listItem.selectFirst(SIZE)?.ownText()?.let(FileSizeUtils::normalizeSize)
         val seeders = listItem.selectFirst(SEEDERS)?.text()?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.text()?.toUIntOrNull()
-        val uploadDate = listItem.selectFirst(UPLOAD_DATE)?.ownText()
+        val uploadDate = listItem.selectFirst(UPLOAD_DATE)
+            ?.ownText()
             ?.let { TorrentDateParser.parse(date = it, format = "yyyy/MM/dd HH:mm") }
-        val category = listItem.selectFirst(CATEGORY)?.className()
+        val category = listItem.selectFirst(CATEGORY)
+            ?.className()
             ?.removePrefix("sort-")
             ?.let(::getCategoryFromId)
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

@@ -39,7 +39,7 @@ class TokyoToshokan(private val networkClient: NetworkClient) : SearchProvider,
         Category.Porn to 15,
         Category.Other to 5,
     )
-    private val resultsPageParser = TokyoToshokanResultsPageParser(providerName = name)
+    private val resultsPageParser = TokyoToshokanResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -81,7 +81,10 @@ class TokyoToshokan(private val networkClient: NetworkClient) : SearchProvider,
     }
 }
 
-private class TokyoToshokanResultsPageParser(private val providerName: String) {
+private class TokyoToshokanResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup
@@ -94,6 +97,11 @@ private class TokyoToshokanResultsPageParser(private val providerName: String) {
     private fun parseListItem(tr1: Element, tr2: Element): Torrent? {
         val torrentName = tr1.selectFirst(NAME)?.ownText() ?: return null
         val magnetUri = tr1.selectFirst(MAGNET_URI)?.attr("href") ?: return null
+
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
         val fileDownloadLink = tr1.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
         val detailsPageUrl = tr1.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
         val category = tr1.selectFirst(CATEGORY)
@@ -115,7 +123,7 @@ private class TokyoToshokanResultsPageParser(private val providerName: String) {
         val peers = tr2.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

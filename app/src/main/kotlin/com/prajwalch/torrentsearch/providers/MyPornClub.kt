@@ -27,7 +27,7 @@ class MyPornClub(private val networkClient: NetworkClient) :
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = MyPornClubResultsPageParser(name, networkClient)
+    private val resultsPageParser = MyPornClubResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val formattedQuery = query.trim().replace("%20", "-")
@@ -59,6 +59,7 @@ class MyPornClub(private val networkClient: NetworkClient) :
 }
 
 private class MyPornClubResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -75,13 +76,22 @@ private class MyPornClubResultsPageParser(
 
     /** Parses a single search result row into a [Torrent] object. */
     private suspend fun parseListItem(listItem: Element): Torrent? {
-        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
+        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)
+            ?.attr("abs:href")
             ?: return null
         val detailsPageHtml = networkClient.getText(detailsPageUrl)
         val torrentDetails = MyPornClubDetailsPageParser.parse(
             html = detailsPageHtml,
             pageUrl = detailsPageUrl,
         ) ?: return null
+
+        val torrentRemoteId = detailsPageUrl
+            .takeWhile { it != '?' }
+            .takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId,
+        )
 
         val name = listItem.selectFirst(NAME)?.ownText() ?: return null
         val size = listItem.selectFirst(SIZE)?.ownText()
@@ -91,7 +101,7 @@ private class MyPornClubResultsPageParser(
             ?.let(TorrentDateParser::tryParseRelative)
 
         return Torrent(
-            infoHash = torrentDetails.infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

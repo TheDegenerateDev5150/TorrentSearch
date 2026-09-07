@@ -38,7 +38,7 @@ import java.time.Instant
         TorznabConfigEntity::class,
         ViewedTorrentEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -95,6 +95,7 @@ abstract class TorrentSearchDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_4_5)
                 .addMigrations(MIGRATION_5_6)
                 .addMigrations(MIGRATION_6_7)
+                .addMigrations(MIGRATION_7_8)
 
             return databaseBuilder.build().also { Instance = it }
         }
@@ -374,5 +375,76 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("DROP TABLE search_history_old")
         // language="RoomSql"
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_search_history_query` ON `search_history` (`query`)")
+    }
+}
+
+/**
+ * Migration from 7 to 8:
+ * - Change `bookmarks` table `id` column's data type from `Long` to `String`.
+ * - Fully drop old `viewed_torrents` table and create a new empty one.
+ */
+private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migrateBookmarks(db)
+        migrateViewTorrents(db)
+    }
+
+    private fun migrateBookmarks(db: SupportSQLiteDatabase) {
+        // 1. Rename old bookmarks table
+        // language="RoomSql"
+        db.execSQL("ALTER TABLE bookmarks RENAME TO bookmarks_old")
+
+        // 2. Create new table with id column as text.
+        // language="RoomSql"
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `bookmarks` (
+                `id` TEXT NOT NULL,
+                `infoHash` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `size` TEXT DEFAULT NULL,
+                `seeders` INTEGER DEFAULT NULL,
+                `peers` INTEGER DEFAULT NULL,
+                `providerName` TEXT NOT NULL,
+                `uploadDate` INTEGER DEFAULT NULL,
+                `category` TEXT DEFAULT NULL,
+                `descriptionPageUrl` TEXT DEFAULT NULL,
+                `magnetUri` TEXT DEFAULT NULL,
+                `fileDownloadLink` TEXT DEFAULT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+
+        // 3. Migrate bookmarks
+        // language="RoomSql"
+        db.execSQL(
+            """
+            INSERT INTO bookmarks (id, infoHash, name, size, seeders, peers, providerName, uploadDate, category, descriptionPageUrl, magnetUri, fileDownloadLink)
+            SELECT CAST(id AS TEXT), infoHash, name, size, seeders, peers, providerName, uploadDate, category, descriptionPageUrl, magnetUri, fileDownloadLink FROM bookmarks_old
+            """.trimIndent()
+        )
+
+        // 4. Delete old table
+        // language="RoomSql"
+        db.execSQL("DROP TABLE bookmarks_old")
+    }
+
+    private fun migrateViewTorrents(db: SupportSQLiteDatabase) {
+        // 1. Delete old table
+        // language="RoomSql"
+        db.execSQL("DROP TABLE viewed_torrents")
+
+        // 2. Create new empty table ignoring old values.
+        // language="RoomSql"
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `viewed_torrents` (
+                `id` TEXT NOT NULL,
+                `viewedAt` INTEGER NOT NULL,
+                PRIMARY KEY(`id`)
+            ) 
+            """.trimIndent()
+        )
     }
 }

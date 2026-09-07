@@ -44,7 +44,7 @@ class TorrentDatabase(private val networkClient: NetworkClient) : SearchProvider
         Category.Series to "tv",
     )
 
-    private val resultsPageParser = TdResultsPageParser(providerName = name)
+    private val resultsPageParser = TdResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -96,7 +96,10 @@ class TorrentDatabase(private val networkClient: NetworkClient) : SearchProvider
     }
 }
 
-private class TdResultsPageParser(private val providerName: String) {
+private class TdResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup
@@ -125,8 +128,14 @@ private class TdResultsPageParser(private val providerName: String) {
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()
         val peers = listItem.selectFirst(PEERS)?.ownText()
 
+        val torrentRemoteId = descriptionPageUrl?.takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: infoHash,
+        )
+
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders?.toUIntOrNull(),

@@ -28,7 +28,7 @@ class Yts(private val networkClient: NetworkClient) : SearchProvider, LatestTorr
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = true
 
-    private val resultsJsonParser = YtsResultsJsonParser(providerName = name)
+    private val resultsJsonParser = YtsResultsJsonParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -76,7 +76,10 @@ class Yts(private val networkClient: NetworkClient) : SearchProvider, LatestTorr
     }
 }
 
-private class YtsResultsJsonParser(private val providerName: String) {
+private class YtsResultsJsonParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(json: JsonElement): List<Torrent> = withContext(Dispatchers.Default) {
         json.asObject()
             .getObject("data")
@@ -143,6 +146,7 @@ private class YtsResultsJsonParser(private val providerName: String) {
     ): Torrent? {
         val infoHash = torrentObject.getString("hash")?.lowercase() ?: return null
 
+        val torrentId = TorrentUtils.createTorrentId(providerId, infoHash)
         val quality = torrentObject.getString("quality") ?: "-"
         val type = torrentObject.getString("type") ?: "-"
         val codec = torrentObject.getString("video_codec") ?: "-"
@@ -157,7 +161,7 @@ private class YtsResultsJsonParser(private val providerName: String) {
         val detailsPageUrl = detailsPageUrl?.let { "$it?movieid=$movieId&infohash=$infoHash" }
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

@@ -25,7 +25,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
 import com.prajwalch.torrentsearch.R
-import com.prajwalch.torrentsearch.domain.model.BookmarkedTorrent
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.ui.component.LazyColumnWithScrollbar
 import com.prajwalch.torrentsearch.ui.component.TorrentListItem
@@ -35,9 +34,9 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun BookmarkList(
-    bookmarks: List<BookmarkedTorrent>,
-    onBookmarkClick: (BookmarkedTorrent) -> Unit,
-    onDeleteBookmark: (BookmarkedTorrent) -> Unit,
+    bookmarks: List<Torrent>,
+    onBookmarkClick: (Torrent) -> Unit,
+    onDeleteBookmark: (id: String) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     lazyListState: LazyListState = rememberLazyListState(),
@@ -51,13 +50,13 @@ fun BookmarkList(
         items(
             items = bookmarks,
             key = { it.id },
-            contentType = { it.torrent.category },
+            contentType = { it.category },
         ) {
             BookmarkListItem(
                 modifier = Modifier.animateItem(),
-                bookmark = it.torrent,
+                bookmark = it,
                 onClick = { onBookmarkClick(it) },
-                onDelete = { onDeleteBookmark(it) },
+                onDelete = { onDeleteBookmark(it.id) },
             )
         }
     }

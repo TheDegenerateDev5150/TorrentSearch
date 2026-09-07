@@ -41,7 +41,7 @@ class BitSearch(private val networkClient: NetworkClient) :
     override val enabledByDefault = false
     override val type = SearchProviderType.Builtin
 
-    private val resultsPageParser = BitSearchResultsPageParser(name)
+    private val resultsPageParser = BitSearchResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> =
         coroutineScope {
@@ -114,7 +114,10 @@ class BitSearch(private val networkClient: NetworkClient) :
     }
 }
 
-private class BitSearchResultsPageParser(private val providerName: String) {
+private class BitSearchResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup
@@ -124,8 +127,18 @@ private class BitSearchResultsPageParser(private val providerName: String) {
         }
 
     private fun parseListItem(listItem: Element): Torrent? {
-        val name = listItem.selectFirst(TORRENT_NAME)?.text() ?: return null
+        val nameElement = listItem.selectFirst(TORRENT_NAME) ?: return null
+        val name = nameElement.text()
         val magnetUri = listItem.selectFirst(MAGNET_LINK)?.attr("href") ?: return null
+
+        val torrentRemoteId = nameElement.attr("href")
+            .takeLastWhile { it != '/' }
+            .takeIf { it.isNotBlank() }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()
         val peers = listItem.selectFirst(PEERS)?.ownText()
@@ -141,7 +154,7 @@ private class BitSearchResultsPageParser(private val providerName: String) {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders?.toUIntOrNull(),

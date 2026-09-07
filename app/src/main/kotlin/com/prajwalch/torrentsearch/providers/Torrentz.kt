@@ -46,7 +46,7 @@ class Torrentz(private val networkClient: NetworkClient) : SearchProvider, Lates
         Category.Books to 9,
         Category.Porn to 10,
     )
-    private val resultsPageParser = TorrentzResultsPageParser(name, networkClient)
+    private val resultsPageParser = TorrentzResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -104,6 +104,7 @@ class Torrentz(private val networkClient: NetworkClient) : SearchProvider, Lates
 }
 
 private class TorrentzResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -129,8 +130,14 @@ private class TorrentzResultsPageParser(
             pageUrl = detailsPageUrl
         ) ?: return null
 
+        val torrentRemoteId = detailsPageUrl.takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId,
+        )
+
         return Torrent(
-            infoHash = torrentDetails.infoHash,
+            id = torrentId,
             name = torrentDetails.name,
             size = torrentDetails.size,
             seeders = torrentDetails.seeders,

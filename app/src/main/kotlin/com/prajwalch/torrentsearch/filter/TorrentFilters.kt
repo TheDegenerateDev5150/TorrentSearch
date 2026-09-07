@@ -10,8 +10,8 @@ object TorrentFilters {
     fun notExcludedProvider(excludedProviders: Set<String>): TorrentFilter =
         { torrent -> torrent.providerName !in excludedProviders }
 
-    fun notViewed(viewedTorrentHashes: Set<String>): TorrentFilter =
-        { torrent -> torrent.infoHash !in viewedTorrentHashes }
+    fun notViewed(viewedTorrentIds: Set<String>): TorrentFilter =
+        { torrent -> torrent.id !in viewedTorrentIds }
 
     fun matchesCategory(category: Category): TorrentFilter =
         { torrent -> category == torrent.category }

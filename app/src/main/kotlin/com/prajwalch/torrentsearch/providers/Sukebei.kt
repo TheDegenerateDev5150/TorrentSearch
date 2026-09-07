@@ -25,7 +25,7 @@ class Sukebei(private val networkClient: NetworkClient) :
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = SukebeiResultsPageParser(providerName = name)
+    private val resultsPageParser = SukebeiResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -59,7 +59,10 @@ class Sukebei(private val networkClient: NetworkClient) :
     }
 }
 
-private class SukebeiResultsPageParser(private val providerName: String) {
+private class SukebeiResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup
@@ -72,7 +75,6 @@ private class SukebeiResultsPageParser(private val providerName: String) {
         val torrentName = listItem.selectFirst(NAME)?.ownText() ?: return null
         val magnetUri = listItem.selectFirst(MAGNET_URI)?.attr("href") ?: return null
         val fileDownloadLink = listItem.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
-        val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
         val size = listItem.selectFirst(SIZE)?.ownText()
         val uploadDate = listItem.selectFirst(UPLOAD_DATE)?.attr("data-timestamp")
             ?.toLongOrNull()
@@ -81,8 +83,14 @@ private class SukebeiResultsPageParser(private val providerName: String) {
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
+        val torrentRemoteId = detailsPageUrl?.takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

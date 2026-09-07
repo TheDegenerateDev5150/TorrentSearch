@@ -11,6 +11,7 @@ import com.prajwalch.torrentsearch.extension.getUInt
 import com.prajwalch.torrentsearch.network.NetworkClient
 import com.prajwalch.torrentsearch.util.FileSizeUtils
 import com.prajwalch.torrentsearch.util.TorrentDateParser
+import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -88,23 +89,30 @@ class AniLibria(private val networkClient: NetworkClient) : SearchProvider {
     private fun parseTorrentObject(obj: JsonObject): Torrent? {
         val infoHash = obj.getString("hash") ?: return null
 
+        val torrentRemoteId = obj.getLong("id")?.toString()
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = id,
+            sourceId = torrentRemoteId ?: infoHash,
+        )
+
         val release = obj.getObject("release")
-        val releaseName = release
-            ?.getObject("name")
-            ?.let { it.getString("english") ?: it.getString("main") }
-        val name = obj.getString("label") ?: releaseName ?: return null
+        val name = obj.getString("label") ?: run {
+            release?.getObject("name")?.let {
+                it.getString("english") ?: it.getString("main")
+            }
+        } ?: return null
 
         val size = obj.getLong("size")?.toFloat()?.let(FileSizeUtils::formatBytes)
         val magnetUri = obj.getString("magnet")
         val seeders = obj.getUInt("seeders")
         val peers = obj.getUInt("leechers")
         val uploadDate = obj.getString("created_at")?.let(TorrentDateParser::parseIso)
-        val descriptionPageUrl = release
-            ?.getString("alias")
-            ?.let { "$url/anime/releases/release/$it" }
+        val descriptionPageUrl = release?.getString("alias")?.let {
+            "$url/anime/releases/release/$it"
+        }
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

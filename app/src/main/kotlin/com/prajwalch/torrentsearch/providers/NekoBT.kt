@@ -26,7 +26,7 @@ class NekoBT(private val networkClient: NetworkClient) : SearchProvider, LatestT
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = NekoBTResultsPageParser(providerName = name)
+    private val resultsPageParser = NekoBTResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "$url/search?query=$query"
@@ -55,7 +55,10 @@ class NekoBT(private val networkClient: NetworkClient) : SearchProvider, LatestT
     }
 }
 
-private class NekoBTResultsPageParser(private val providerName: String) {
+private class NekoBTResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
@@ -78,8 +81,14 @@ private class NekoBTResultsPageParser(private val providerName: String) {
         val fileDownloadLink = listItem.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
+        val torrentRemoteId = detailsPageUrl?.takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

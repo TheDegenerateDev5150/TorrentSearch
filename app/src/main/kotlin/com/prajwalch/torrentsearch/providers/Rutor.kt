@@ -42,7 +42,7 @@ class Rutor(private val networkClient: NetworkClient) : SearchProvider, LatestTo
         Category.Other to 3,
         Category.Series to 4,
     )
-    private val resultsPageParser = RutorResultsPageParser(providerName = name)
+    private val resultsPageParser = RutorResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         // https://rutor.info/search/<page>/<category>/<match type>/<sort>/sinners
@@ -90,7 +90,10 @@ class Rutor(private val networkClient: NetworkClient) : SearchProvider, LatestTo
     }
 }
 
-private class RutorResultsPageParser(private val providerName: String) {
+private class RutorResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(
         html: String,
         pageUrl: String,
@@ -115,8 +118,13 @@ private class RutorResultsPageParser(private val providerName: String) {
         val fileDownloadLink = listItem.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = detailsPageUrl ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

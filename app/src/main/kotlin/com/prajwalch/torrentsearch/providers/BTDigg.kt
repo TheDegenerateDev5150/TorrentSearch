@@ -21,7 +21,7 @@ class BTDigg(private val networkClient: NetworkClient) : SearchProvider, Torrent
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = BTDiggResultsPageParser(name)
+    private val resultsPageParser = BTDiggResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "https://btdig.com/search?q=$query"
@@ -36,7 +36,10 @@ class BTDigg(private val networkClient: NetworkClient) : SearchProvider, Torrent
     }
 }
 
-private class BTDiggResultsPageParser(private val providerName: String) {
+private class BTDiggResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
@@ -47,6 +50,12 @@ private class BTDiggResultsPageParser(private val providerName: String) {
     private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.text() ?: return null
         val magnetUri = listItem.selectFirst(MAGNET_URI)?.attr("href") ?: return null
+
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         val size = listItem.selectFirst(SIZE)?.ownText()
         val uploadDate = listItem.selectFirst(UPLOAD_DATE)
             ?.ownText()
@@ -55,7 +64,7 @@ private class BTDiggResultsPageParser(private val providerName: String) {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             uploadDate = uploadDate,

@@ -6,6 +6,7 @@ import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
 import com.prajwalch.torrentsearch.util.TorrentDateParser
+import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,7 +40,7 @@ class LimeTorrents(private val networkClient: NetworkClient) : SearchProvider,
     )
     override val enabledByDefault = false
 
-    private val resultsPageParser = LimeTorrentsResultsPageParser(name)
+    private val resultsPageParser = LimeTorrentsResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val categoryString = getCategorySearchString(category)
@@ -108,7 +109,10 @@ class LimeTorrents(private val networkClient: NetworkClient) : SearchProvider,
     }
 }
 
-private class LimeTorrentsResultsPageParser(private val providerName: String) {
+private class LimeTorrentsResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(
         html: String,
         pageUrl: String,
@@ -129,6 +133,7 @@ private class LimeTorrentsResultsPageParser(private val providerName: String) {
         val infoHash = fileDownloadLink.removePrefix("http://itorrents.net/torrent/")
             .takeWhile { it != '.' }
             .lowercase()
+        val torrentId = TorrentUtils.createTorrentId(providerId = providerId, sourceId = infoHash)
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
@@ -141,7 +146,7 @@ private class LimeTorrentsResultsPageParser(private val providerName: String) {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

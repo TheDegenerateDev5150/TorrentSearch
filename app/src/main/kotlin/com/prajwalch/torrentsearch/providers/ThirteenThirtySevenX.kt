@@ -46,7 +46,7 @@ class ThirteenThirtySevenX(private val networkClient: NetworkClient) : SearchPro
         Category.Porn to "XXX",
         Category.Series to "TV",
     )
-    private val resultsPageParser = ThirteenThirtySevenXResultsPageParser(name, networkClient)
+    private val resultsPageParser = ThirteenThirtySevenXResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = if (category == Category.All) {
@@ -77,6 +77,7 @@ class ThirteenThirtySevenX(private val networkClient: NetworkClient) : SearchPro
 }
 
 private class ThirteenThirtySevenXResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -97,6 +98,10 @@ private class ThirteenThirtySevenXResultsPageParser(
             pageUrl = detailsPageUrl,
         ) ?: return null
 
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = detailsPageUrl,
+        )
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
         val size = listItem.selectFirst(SIZE)?.ownText()?.filter { it != ',' }
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
@@ -108,7 +113,7 @@ private class ThirteenThirtySevenXResultsPageParser(
             ?.let(::getCategoryFromId)
 
         return Torrent(
-            infoHash = torrentDetails.infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

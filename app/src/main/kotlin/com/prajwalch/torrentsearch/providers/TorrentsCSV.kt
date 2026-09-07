@@ -10,6 +10,7 @@ import com.prajwalch.torrentsearch.extension.getUInt
 import com.prajwalch.torrentsearch.network.NetworkClient
 import com.prajwalch.torrentsearch.util.FileSizeUtils
 import com.prajwalch.torrentsearch.util.TorrentDateParser
+import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -62,7 +63,12 @@ class TorrentsCSV(private val networkClient: NetworkClient) : SearchProvider {
      * */
     private fun parseTorrentObject(torrentObject: JsonObject): Torrent? {
         val name = torrentObject.getString("name") ?: return null
-        val infoHash = torrentObject.getString("infohash") ?: return null
+//        val infoHash = torrentObject.getString("infohash") ?: return null
+        val torrentRemoteId = torrentObject.getLong("id") ?: return null
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = id,
+            sourceId = torrentRemoteId.toString(),
+        )
 
         val sizeBytes = torrentObject.getLong("size_bytes") ?: return null
         val size = FileSizeUtils.formatBytes(bytes = sizeBytes.toFloat())
@@ -74,7 +80,7 @@ class TorrentsCSV(private val networkClient: NetworkClient) : SearchProvider {
             ?: return null
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

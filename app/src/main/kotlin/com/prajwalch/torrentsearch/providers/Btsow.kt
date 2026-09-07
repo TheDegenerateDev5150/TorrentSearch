@@ -28,7 +28,7 @@ class Btsow(private val networkClient: NetworkClient) : SearchProvider, TorrentD
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsJsonParser = BtsowResultsJsonParser(name, url)
+    private val resultsJsonParser = BtsowResultsJsonParser(id, name, url)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         // [{"search":"one"},30,3]
@@ -64,6 +64,7 @@ class Btsow(private val networkClient: NetworkClient) : SearchProvider, TorrentD
 }
 
 private class BtsowResultsJsonParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val providerUrl: String,
 ) {
@@ -72,15 +73,19 @@ private class BtsowResultsJsonParser(
             .getArray("data")
             ?.map { it.asObject() }
             ?.mapNotNull {
-                val infoHash = it.getString("hash")?.lowercase() ?: return@mapNotNull null
                 val torrentName = it.getString("name")
                     ?.replace("<em>", "")
                     ?.replace("</em>", "")
                     ?: return@mapNotNull null
+                val infoHash = it.getString("hash")?.lowercase() ?: return@mapNotNull null
+                val torrentId = TorrentUtils.createTorrentId(
+                    providerId = providerId,
+                    sourceId = infoHash,
+                )
                 val size = it.getLong("size")?.toFloat()?.let(FileSizeUtils::formatBytes)
 
                 Torrent(
-                    infoHash = infoHash,
+                    id = torrentId,
                     name = torrentName,
                     size = size,
                     providerName = providerName,

@@ -30,7 +30,6 @@ class Nyaa(private val networkClient: NetworkClient) : SearchProvider, TorrentDe
     override val enabledByDefault = true
     override val alternateUrlDomains = listOf("https://nyaa.iss.ink")
 
-    private val resultsPageParser = NyaaResultsPageParser(providerName = name)
     private val categoryMap = mapOf(
         Category.All to "0_0",
         Category.Anime to "1_0",
@@ -40,6 +39,7 @@ class Nyaa(private val networkClient: NetworkClient) : SearchProvider, TorrentDe
         Category.Music to "2_0",
         Category.Series to "4_0",
     )
+    private val resultsPageParser = NyaaResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -77,7 +77,10 @@ class Nyaa(private val networkClient: NetworkClient) : SearchProvider, TorrentDe
     }
 }
 
-private class NyaaResultsPageParser(private val providerName: String) {
+private class NyaaResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     /**
      * Parses the result page and returns all the extracted torrents, otherwise
      * returns `null` if the page has unexpected layout.
@@ -99,6 +102,13 @@ private class NyaaResultsPageParser(private val providerName: String) {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
         val fileDownloadLink = listItem.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
         val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
+
+        val torrentRemoteId = detailsPageUrl?.takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         val size = listItem.selectFirst(SIZE)?.ownText()
         val uploadDate = listItem.selectFirst(UPLOAD_DATE)
             ?.attr("data-timestamp")
@@ -112,7 +122,7 @@ private class NyaaResultsPageParser(private val providerName: String) {
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

@@ -42,7 +42,7 @@ class MegaPeer(private val networkClient: NetworkClient) : SearchProvider, Torre
         Category.Series to 6,
     )
     private val detailsPageParser = MegaPeersDetailsPageParser(networkClient)
-    private val resultsPageParser = MegaPeerResultsPageParser(name, detailsPageParser)
+    private val resultsPageParser = MegaPeerResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val categoryId = categoryMap[category] ?: 0
@@ -60,8 +60,8 @@ class MegaPeer(private val networkClient: NetworkClient) : SearchProvider, Torre
 }
 
 private class MegaPeerResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
-    private val detailsPageParser: MegaPeersDetailsPageParser,
 ) {
     private companion object {
         private const val LIST_ITEM = "div#index > table > tbody > tr.table_fon"
@@ -83,10 +83,12 @@ private class MegaPeerResultsPageParser(
                 .filterNotNull()
         }
 
-    private suspend fun parseListItem(listItem: Element): Torrent? {
+    private fun parseListItem(listItem: Element): Torrent? {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
-        val magnetUri = detailsPageParser.getMagnetUri(detailsPageUrl) ?: return null
-
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = detailsPageUrl,
+        )
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
@@ -100,7 +102,7 @@ private class MegaPeerResultsPageParser(
         val fileDownloadLink = listItem.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

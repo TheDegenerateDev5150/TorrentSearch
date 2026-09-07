@@ -43,7 +43,7 @@ class Bt4g(private val networkClient: NetworkClient) : SearchProvider, LatestTor
         Category.Other to "other",
     )
     private val detailsPageParser = Bt4gDetailsPageParser(networkClient)
-    private val resultsPageParser = Bt4gResultsPageParser(name, detailsPageParser)
+    private val resultsPageParser = Bt4gResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val categoryName = categoryMap[category] ?: categoryMap[Category.All]!!
@@ -74,8 +74,8 @@ class Bt4g(private val networkClient: NetworkClient) : SearchProvider, LatestTor
 }
 
 private class Bt4gResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
-    private val detailsPageParser: Bt4gDetailsPageParser,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
@@ -86,9 +86,14 @@ private class Bt4gResultsPageParser(
                 .filterNotNull()
         }
 
-    suspend fun parseListItem(listItem: Element): Torrent? {
+    fun parseListItem(listItem: Element): Torrent? {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
-        val infoHash = detailsPageParser.getInfoHash(detailsPageUrl) ?: return null
+
+        val torrentRemoteId = detailsPageUrl.takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId,
+        )
 
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.text() ?: return null
         val size = listItem.selectFirst(SIZE)?.ownText()?.let(FileSizeUtils::normalizeSize)
@@ -108,7 +113,7 @@ private class Bt4gResultsPageParser(
         val category = listItem.selectFirst(CATEGORY)?.ownText()?.let(::getCategoryFromRaw)
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

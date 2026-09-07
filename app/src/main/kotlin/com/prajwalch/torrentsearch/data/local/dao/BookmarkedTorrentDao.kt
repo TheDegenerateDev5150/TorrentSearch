@@ -23,7 +23,7 @@ interface BookmarkedTorrentDao {
     fun getBookmarksCount(): Flow<Int>
 
     @Query("DELETE FROM bookmarks WHERE id = :id")
-    suspend fun deleteBookmarkById(id: Long)
+    suspend fun deleteBookmarkById(id: String)
 
     @Query("DELETE from bookmarks")
     suspend fun deleteAllBookmarks()

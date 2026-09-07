@@ -43,7 +43,7 @@ class Knaben(private val networkClient: NetworkClient) : SearchProvider, LatestT
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = true
 
-    private val resultsJsonParser = KnabenResultsJsonParser(providerName = name)
+    private val resultsJsonParser = KnabenResultsJsonParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestBody = buildRequestJson(
@@ -116,7 +116,10 @@ class Knaben(private val networkClient: NetworkClient) : SearchProvider, LatestT
     }
 }
 
-private class KnabenResultsJsonParser(private val providerName: String) {
+private class KnabenResultsJsonParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(json: JsonElement): List<Torrent> = withContext(Dispatchers.Default) {
         json.asObject()
             .getArray("hits")
@@ -140,7 +143,13 @@ private class KnabenResultsJsonParser(private val providerName: String) {
     private fun parseTorrentObject(obj: JsonObject): Torrent? {
         val name = obj.getString("title") ?: return null
         val magnetUri = obj.getString("magnetUrl") ?: return null
-        val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
+
+        val torrentRemoteId = obj.getString("id")
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId ?: TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         val size = obj.getLong("bytes")?.toFloat()?.let(FileSizeUtils::formatBytes)
         val seeders = obj.getUInt("seeders")
         val peers = obj.getUInt("peers")
@@ -149,7 +158,7 @@ private class KnabenResultsJsonParser(private val providerName: String) {
         val category = extractCategory(obj)
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

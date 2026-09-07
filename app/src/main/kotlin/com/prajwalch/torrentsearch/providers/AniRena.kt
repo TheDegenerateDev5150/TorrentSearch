@@ -41,10 +41,7 @@ class AniRena(private val networkClient: NetworkClient) : SearchProvider,
         Category.Series to "live",
         Category.Other to "other"
     )
-    private val resultsPageParser = AniRenaResultsPageParser(
-        providerName = name,
-        networkClient = networkClient,
-    )
+    private val resultsPageParser = AniRenaResultsPageParser(id, name, networkClient)
     private val detailsPageParser = AniRenaDetailsPageParser(networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -78,6 +75,7 @@ class AniRena(private val networkClient: NetworkClient) : SearchProvider,
 }
 
 private class AniRenaResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -89,10 +87,18 @@ private class AniRenaResultsPageParser(
         }
 
     private suspend fun parseListItem(listItem: Element): Torrent? {
+        val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
         val magnetUriSourceLink = listItem.selectFirst(MAGNET_URI)?.attr("abs:href") ?: return null
         val magnetUri = getMagnetUri(magnetUriSourceLink, networkClient) ?: return null
 
-        val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
+        val torrentRemoteId = listItem.selectFirst(TORRENT_ID)
+            ?.attr("data-torrent-id")
+            ?: magnetUriSourceLink.removeSurrounding("/torrrents/", "/magnet")
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId,
+        )
+
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
@@ -110,7 +116,7 @@ private class AniRenaResultsPageParser(
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,
@@ -127,6 +133,7 @@ private class AniRenaResultsPageParser(
     private companion object {
         private const val LIST_ITEM = "table.tl-table > tbody > tr"
         private const val TORRENT_NAME = "td.col-name > div.tl-name-wrap > a.tl-torrent-name"
+        private const val TORRENT_ID = TORRENT_NAME
         private const val SIZE = "td.col-size"
         private const val SEEDERS = "td.col-se > span.tl-se"
         private const val PEERS = "td.col-le > span.tl-le"

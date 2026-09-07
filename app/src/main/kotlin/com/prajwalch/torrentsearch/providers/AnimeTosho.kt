@@ -25,7 +25,7 @@ class AnimeTosho(private val networkClient: NetworkClient) : SearchProvider,
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = true
 
-    private val resultsPageParser = AnimeToshoResultsPageParser(name)
+    private val resultsPageParser = AnimeToshoResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "$url/search?q=$query"
@@ -40,7 +40,10 @@ class AnimeTosho(private val networkClient: NetworkClient) : SearchProvider,
     }
 }
 
-private class AnimeToshoResultsPageParser(private val providerName: String) {
+private class AnimeToshoResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String): List<Torrent> = withContext(Dispatchers.Default) {
         Jsoup
             .parse(html)
@@ -50,22 +53,24 @@ private class AnimeToshoResultsPageParser(private val providerName: String) {
 
     /** Parses an individual result row into a [Torrent] object. */
     private fun parseEntryDiv(entryDiv: Element): Torrent? {
+        val links = entryDiv.selectFirst("div.links") ?: return null
+        val magnetUri = links.selectFirst("""a[href^="magnet:"]""")?.attr("href") ?: return null
+        val fileDownloadLink = links.selectFirst("a.dllink")?.attr("href")
+
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
+
         val anchor = entryDiv.selectFirst("div.link > a") ?: return null
         val name = anchor.text()
         val descriptionPageUrl = anchor.attr("href").takeIf { it.isNotBlank() }
-
-        val size = entryDiv.selectFirst("div.size")?.ownText() ?: return null
+        val size = entryDiv.selectFirst("div.size")?.ownText()
         val (seeders, peers) = parseSeedsAndPeers(entryDiv)
-
-        val uploadDate = parseUploadDate(entryDiv) ?: return null
-
-        val links = entryDiv.selectFirst("div.links") ?: return null
-        val fileDownloadLink = links.selectFirst("a.dllink")?.attr("href")
-        val magnetUri = links.selectFirst("""a[href^="magnet:"]""")?.attr("href") ?: return null
-        val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
+        val uploadDate = parseUploadDate(entryDiv)
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

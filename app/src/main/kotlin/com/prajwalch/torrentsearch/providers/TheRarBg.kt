@@ -41,7 +41,7 @@ class TheRarBg(private val networkClient: NetworkClient) :
     )
     override val enabledByDefault = false
 
-    private val resultsPageParser = TheRarBgResultsPageParser(name, networkClient)
+    private val resultsPageParser = TheRarBgResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -112,6 +112,7 @@ class TheRarBg(private val networkClient: NetworkClient) :
 }
 
 private class TheRarBgResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -130,7 +131,12 @@ private class TheRarBgResultsPageParser(
             ?: return null
         val detailsPageHtml = networkClient.getText(detailsPageUrl)
         val torrentDetails = TheRarBgDetailsPageParser.parse(detailsPageHtml) ?: return null
-        val infoHash = TorrentUtils.getInfoHashFromMagnetUri(torrentDetails.magnetUri)
+
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = detailsPageUrl,
+        )
+//        val infoHash = TorrentUtils.getInfoHashFromMagnetUri(torrentDetails.magnetUri)
 
         val name = listItem.selectFirst(NAME)?.ownText() ?: return null
         val size = listItem.selectFirst(SIZE)?.attr("data-order")?.let(FileSizeUtils::formatBytes)
@@ -143,7 +149,7 @@ private class TheRarBgResultsPageParser(
         val category = listItem.selectFirst(CATEGORY)?.ownText()?.let(::categoryFromRawString)
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = name,
             size = size,
             seeders = seeders,

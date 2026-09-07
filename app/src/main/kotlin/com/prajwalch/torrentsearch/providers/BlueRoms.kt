@@ -26,7 +26,7 @@ class BlueRoms(private val networkClient: NetworkClient) : SearchProvider, Torre
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = BlueRomsResultsPageParser(name, networkClient)
+    private val resultsPageParser = BlueRomsResultsPageParser(id, name, networkClient)
     private val detailsPageParser = BlueRomsDetailsPageParser(networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -43,6 +43,7 @@ class BlueRoms(private val networkClient: NetworkClient) : SearchProvider, Torre
 }
 
 private class BlueRomsResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -57,8 +58,15 @@ private class BlueRomsResultsPageParser(
 
     suspend fun parseListItem(listItem: Element): Torrent? {
         val downloadPageLink = listItem.selectFirst(DOWNLOAD_PAGE_URL)
-            ?.attr("abs:href") ?: return null
+            ?.attr("abs:href")
+            ?: return null
         val magnetUri = getMagnetUri(downloadPageLink, networkClient) ?: return null
+
+        val torrentRemoteId = downloadPageLink.takeLastWhile { it != '/' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId,
+        )
 
         val gameName = listItem.selectFirst(GAME_NAME)?.ownText() ?: return null
         val platform = listItem.selectFirst(PLATFORM)
@@ -75,7 +83,7 @@ private class BlueRomsResultsPageParser(
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             category = Category.Games,

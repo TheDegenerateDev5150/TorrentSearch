@@ -23,7 +23,7 @@ class LinuxTracker(private val networkClient: NetworkClient) : SearchProvider,
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = LinuxTrackerResultsPageParser(name)
+    private val resultsPageParser = LinuxTrackerResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "$url/index.php?page=torrents&search=$query&category=0&active=0"
@@ -49,7 +49,10 @@ class LinuxTracker(private val networkClient: NetworkClient) : SearchProvider,
     }
 }
 
-private class LinuxTrackerResultsPageParser(private val providerName: String) {
+private class LinuxTrackerResultsPageParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
@@ -58,8 +61,17 @@ private class LinuxTrackerResultsPageParser(private val providerName: String) {
         }
 
     private fun parseListItem(listItem: Element): Torrent? {
-        val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
+        val torrentNameElement = listItem.selectFirst(TORRENT_NAME) ?: return null
         val magnetUri = listItem.selectFirst(MAGNET_URI)?.attr("href") ?: return null
+
+        // href="index.php?page=torrent-details&id=df4fe3d139bcb763ffd51d50f13f6631b1e7015f"
+        val torrentRemoteId = torrentNameElement.attr("href").takeLastWhile { it != '=' }
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = torrentRemoteId,
+        )
+
+        val torrentName = torrentNameElement.ownText()
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
@@ -71,7 +83,7 @@ private class LinuxTrackerResultsPageParser(private val providerName: String) {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = torrentName,
             size = size,
             seeders = seeders,

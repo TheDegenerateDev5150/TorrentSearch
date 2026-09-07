@@ -24,7 +24,7 @@ class ZeroMagnet(private val networkClient: NetworkClient) : SearchProvider,
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = ZeroMagnetResultsPageParser(name, networkClient)
+    private val resultsPageParser = ZeroMagnetResultsPageParser(id, name, networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         // https://9mag.net/search?q=tight
@@ -41,6 +41,7 @@ class ZeroMagnet(private val networkClient: NetworkClient) : SearchProvider,
 }
 
 private class ZeroMagnetResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val networkClient: NetworkClient,
 ) {
@@ -64,8 +65,9 @@ private class ZeroMagnetResultsPageParser(
         val detailsPageHtml = networkClient.getText(detailsPageUrl)
         val torrentDetails = ZeroMagnetDetailsPageParser.parse(detailsPageHtml) ?: return null
 
+        val torrentId = TorrentUtils.createTorrentId(providerId, detailsPageUrl)
         return Torrent(
-            infoHash = torrentDetails.infoHash,
+            id = torrentId,
             name = torrentDetails.name,
             size = torrentDetails.size,
             uploadDate = torrentDetails.uploadDate,

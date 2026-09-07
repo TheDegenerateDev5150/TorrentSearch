@@ -32,8 +32,7 @@ class SubsPlease(private val networkClient: NetworkClient) : SearchProvider, Lat
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsJsonParser =
-        SubsPleaseResultsJsonParser(providerName = name, providerUrl = url)
+    private val resultsJsonParser = SubsPleaseResultsJsonParser(id, name, url)
     private val detailsPageParser = SubsPleaseDetailsPageParser(networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -63,6 +62,7 @@ class SubsPlease(private val networkClient: NetworkClient) : SearchProvider, Lat
 }
 
 private class SubsPleaseResultsJsonParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
     private val providerUrl: String,
 ) {
@@ -102,15 +102,17 @@ private class SubsPleaseResultsJsonParser(
         episodeNumber: String,
     ): Torrent? {
         val magnetUri = downloadObject.getString("magnet") ?: return null
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+        )
         val size = SubsPleaseUtils.parseSizeFromMagnetUri(magnetUri = magnetUri)
-
         val resolution = downloadObject.getString("res")!!
         val finalTorrentName = "$torrentName [${resolution}p]"
-
         val detailsPageUrl = detailsPageUrl?.let { "$it?ep=$episodeNumber&res=$resolution" }
 
         return Torrent(
-            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            id = torrentId,
             name = finalTorrentName,
             size = size,
             uploadDate = uploadDate,

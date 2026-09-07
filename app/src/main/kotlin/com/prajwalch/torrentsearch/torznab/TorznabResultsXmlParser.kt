@@ -7,6 +7,7 @@ import com.prajwalch.torrentsearch.domain.model.Category
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.extension.readParentTag
 import com.prajwalch.torrentsearch.extension.skipCurrentTag
+import com.prajwalch.torrentsearch.providers.SearchProviderId
 import com.prajwalch.torrentsearch.util.FileSizeUtils
 import com.prajwalch.torrentsearch.util.TorrentDateParser
 import com.prajwalch.torrentsearch.util.TorrentUtils
@@ -19,7 +20,10 @@ import java.time.Instant
  *
  * See [API spec](https://torznab.github.io/spec-1.3-draft/torznab/Specification-v1.3.html).
  */
-class TorznabResultsXmlParser(private val providerName: String) {
+class TorznabResultsXmlParser(
+    private val providerId: SearchProviderId,
+    private val providerName: String,
+) {
     private val parser = Xml.newPullParser()
     private val namespace: String? = null
     private val torrents = mutableListOf<Torrent>()
@@ -113,12 +117,24 @@ class TorznabResultsXmlParser(private val providerName: String) {
             }
         }
 
+        if (torrentName == null) {
+            return
+        }
+
+        if (infoHash == null || magnetUri == null) {
+            return
+        }
+
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = infoHash,
+        )
         val category = categoryIds.maxOrNull()
             ?.let(TorznabCategoryMapper::getCategoryFromId) ?: Category.Other
 
         val torrent = Torrent(
-            infoHash = infoHash ?: magnetUri?.let(TorrentUtils::getInfoHashFromMagnetUri) ?: return,
-            name = torrentName ?: return,
+            id = torrentId,
+            name = torrentName,
             size = size,
             seeders = seeders?.toUIntOrNull(),
             peers = peers?.toUIntOrNull(),

@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
@@ -33,7 +34,7 @@ fun SearchResults(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
-    viewedTorrentHashes: Set<String> = emptySet(),
+    viewedTorrentIds: Set<String> = emptySet(),
     lazyListState: LazyListState = rememberLazyListState(),
 ) {
     PullToRefreshBox(
@@ -54,8 +55,8 @@ fun SearchResults(
                 )
             }
 
-            items(items = searchResults, contentType = { it.category }) {
-                val isViewed = it.infoHash in viewedTorrentHashes
+            items(items = searchResults, key = { it.id }, contentType = { it.category }) {
+                val isViewed = remember(viewedTorrentIds) { it.id in viewedTorrentIds }
                 val listItemAlpha = if (isViewed) 0.6f else 1f
 
                 TorrentListItem(

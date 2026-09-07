@@ -1,5 +1,8 @@
 package com.prajwalch.torrentsearch.util
 
+import com.prajwalch.torrentsearch.providers.SearchProviderId
+import java.security.MessageDigest
+
 object TorrentUtils {
     /**
      * A list of public trackers to use when creating a magnet URI.
@@ -45,4 +48,16 @@ object TorrentUtils {
 
     fun createMagnetUri(infoHash: String): String =
         "magnet:?xt=urn:btih:${infoHash}&$PublicTrackersParams"
+
+    /**
+     * Creates a new torrent ID using the combination of given provider ID
+     * and the source ID.
+     */
+    fun createTorrentId(providerId: SearchProviderId, sourceId: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(sourceId.toByteArray())
+            .toHexString()
+
+        return "$providerId:$digest"
+    }
 }

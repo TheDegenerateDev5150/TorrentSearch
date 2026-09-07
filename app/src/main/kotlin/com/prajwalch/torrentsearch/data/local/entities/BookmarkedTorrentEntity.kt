@@ -9,8 +9,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 @Entity(tableName = "bookmarks")
 data class BookmarkedTorrentEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey
+    val id: String,
     val infoHash: String,
     val name: String,
     @ColumnInfo(defaultValue = "NULL")

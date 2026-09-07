@@ -116,7 +116,7 @@ fun BrowseScreen(
                     )
                 } else {
                     viewModel.downloadTorrentFileUsingInfoHash(
-                        infoHash = torrent.infoHash,
+                        infoHash = "",
                         fileName = torrent.name,
                     )
                 }
@@ -274,11 +274,11 @@ fun BrowseScreen(
                             torrents = uiState.torrents,
                             onTorrentClick = {
                                 selectedTorrent = it
-                                viewModel.markAsViewed(it.infoHash)
+                                viewModel.markAsViewed(it.id)
                             },
                             isRefreshing = contentState is BrowseContentState.Available.Refreshing,
                             onRefresh = viewModel::refreshTorrents,
-                            viewedTorrentHashes = uiState.viewedTorrentHashes,
+                            viewedTorrentIds = uiState.viewedTorrentIds,
                             lazyListState = torrentListState.lazyListState,
                         )
                     }

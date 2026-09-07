@@ -24,7 +24,7 @@ class AudioBookBay(private val networkClient: NetworkClient) : SearchProvider,
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = AudioBookBayResultsPageParser(name, networkClient)
+    private val resultsPageParser = AudioBookBayResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = "$url/?s=$query"
@@ -45,8 +45,8 @@ class AudioBookBay(private val networkClient: NetworkClient) : SearchProvider,
 }
 
 private class AudioBookBayResultsPageParser(
+    private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
@@ -57,13 +57,16 @@ private class AudioBookBayResultsPageParser(
                 .filterNotNull()
         }
 
-    private suspend fun parseListItem(listItem: Element): Torrent? {
-        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
-        val infoHash = getInfoHash(detailsPageUrl) ?: return null
-
+    private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
-        val torrentInfo = listItem.selectFirst(TORRENT_INFO)?.wholeText()?.lines()
+        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
 
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = detailsPageUrl,
+        )
+
+        val torrentInfo = listItem.selectFirst(TORRENT_INFO)?.wholeText()?.lines()
         val size = torrentInfo
             ?.find { line -> line.startsWith("File Size: ") }
             ?.substringAfter("File Size: ")
@@ -76,7 +79,7 @@ private class AudioBookBayResultsPageParser(
             ?.let { TorrentDateParser.parse(date = it, format = "d MMM yyyy") }
 
         return Torrent(
-            infoHash = infoHash,
+            id = torrentId,
             name = torrentName,
             size = size,
             uploadDate = uploadDate,
@@ -86,6 +89,7 @@ private class AudioBookBayResultsPageParser(
         )
     }
 
+    /*
     private suspend fun getInfoHash(detailsPageUrl: String): String? {
         return networkClient.getText(detailsPageUrl)
             .let(Jsoup::parse)
@@ -93,6 +97,7 @@ private class AudioBookBayResultsPageParser(
             ?.nextElementSibling()
             ?.ownText()
     }
+    */
 
     private companion object {
         private const val LIST_ITEM = "div.post"

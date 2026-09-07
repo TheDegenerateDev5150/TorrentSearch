@@ -25,7 +25,6 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,17 +41,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-import java.io.OutputStream
-
-import kotlin.time.Duration.Companion.seconds
 import org.koin.core.annotation.KoinViewModel
+import java.io.OutputStream
+import kotlin.time.Duration.Companion.seconds
 
 data class BrowseUiState(
     val contentState: BrowseContentState = BrowseContentState.Loading,
     val torrents: ImmutableList<Torrent> = persistentListOf(),
     val queryParams: BrowseQueryParams = BrowseQueryParams(),
     val viewFilters: BrowseViewFilters = BrowseViewFilters(),
-    val viewedTorrentHashes: Set<String> = emptySet(),
+    val viewedTorrentIds: Set<String> = emptySet(),
 )
 
 @Stable
@@ -118,7 +116,7 @@ class BrowseViewModel(
     private val torrentsProcessor = TorrentsProcessor(
         torrents = torrentsLoader.torrents,
         queryParams = torrentsLoader.queryParams,
-        viewedTorrentHashes = viewedTorrentRepository.getAllViewedHashes(),
+        viewedTorrentIds = viewedTorrentRepository.getAllViewedIds(),
         settingsRepository = settingsRepository,
     )
 
@@ -130,20 +128,20 @@ class BrowseViewModel(
         torrentsLoader.state,
         torrentsProcessor.processedTorrents,
         torrentsProcessor.viewFilters,
-        viewedTorrentRepository.getAllViewedHashes(),
+        viewedTorrentRepository.getAllViewedIds(),
     ) {
             queryParams,
             contentState,
             torrents,
             viewFilters,
-            viewedTorrentHashes,
+            viewedTorrentIds,
         ->
         BrowseUiState(
             contentState = contentState,
             torrents = torrents,
             queryParams = queryParams,
             viewFilters = viewFilters,
-            viewedTorrentHashes = viewedTorrentHashes,
+            viewedTorrentIds = viewedTorrentIds,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -404,13 +402,13 @@ private class TorrentsLoader(
  * @param torrents The input stream from where torrents are pulled.
  * @param queryParams The [Flow] that emits the current query params.
  *                    Query params are used additionally to remove unwanted torrents.
- * @param viewedTorrentHashes The [Flow] that emits the viewed torrent hashes.
+ * @param viewedTorrentIds The [Flow] that emits the viewed torrent IDs.
  * @param settingsRepository The repository for fetching user-defined transformation values.
  */
 private class TorrentsProcessor(
     torrents: Flow<PersistentList<Torrent>>,
     queryParams: Flow<BrowseQueryParams>,
-    viewedTorrentHashes: Flow<Set<String>>,
+    viewedTorrentIds: Flow<Set<String>>,
     settingsRepository: SettingsRepository,
 ) {
     private data class TorrentFilter(
@@ -439,16 +437,15 @@ private class TorrentsProcessor(
         )
 
     /**
-     * Hashes of currently viewed torrents that should be hidden when filter is active.
+     * IDs of currently viewed torrents that should be hidden when filter is active.
      *
-     * The hashes are captured only when 'hide viewed' filter is enabled to avoid
+     * The IDs are captured only when 'hide viewed' filter is enabled to avoid
      * instant hiding.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val currentlyViewedTorrentHashes: Flow<Set<String>> =
+    private val currentViewedTorrentIds: Flow<Set<String>> =
         torrentFilter
             .map { it.hideViewed }
-            .map { if (it) viewedTorrentHashes.firstOrNull().orEmpty() else emptySet() }
+            .map { if (it) viewedTorrentIds.firstOrNull().orEmpty() else emptySet() }
 
     /**
      * The output stream of processed torrents.
@@ -458,7 +455,7 @@ private class TorrentsProcessor(
             torrents,
             queryParams,
             torrentFilter,
-            currentlyViewedTorrentHashes,
+            currentViewedTorrentIds,
             settingsRepository.enableNSFWMode,
             ::processTorrents,
         ).flowOn(Dispatchers.Default)
@@ -492,7 +489,7 @@ private class TorrentsProcessor(
         torrents: PersistentList<Torrent>,
         queryParams: BrowseQueryParams,
         torrentFilter: TorrentFilter,
-        viewedTorrentHashes: Set<String>,
+        viewedTorrentIds: Set<String>,
         nsfwModeEnabled: Boolean,
     ): ImmutableList<Torrent> {
         val sortComparator: Comparator<Torrent> = when (queryParams.sort) {
@@ -505,7 +502,7 @@ private class TorrentsProcessor(
 
             if (!nsfwModeEnabled) add(TorrentFilters.isSfw())
             if (!torrentFilter.deadTorrents) add(TorrentFilters.isAlive())
-            if (torrentFilter.hideViewed) add(TorrentFilters.notViewed(viewedTorrentHashes))
+            if (torrentFilter.hideViewed) add(TorrentFilters.notViewed(viewedTorrentIds))
             if (torrentFilter.searchQuery.isNotBlank())
                 add(TorrentFilters.matchesQuery(torrentFilter.searchQuery))
             if (queryParams.category != Category.All)

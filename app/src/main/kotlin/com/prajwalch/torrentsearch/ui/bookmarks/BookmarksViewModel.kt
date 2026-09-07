@@ -7,11 +7,12 @@ import androidx.lifecycle.viewModelScope
 import com.prajwalch.torrentsearch.data.repository.BookmarkRepository
 import com.prajwalch.torrentsearch.data.repository.SettingsRepository
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloader
-import com.prajwalch.torrentsearch.domain.model.BookmarkedTorrent
 import com.prajwalch.torrentsearch.domain.model.SortCriteria
 import com.prajwalch.torrentsearch.domain.model.SortOptions
 import com.prajwalch.torrentsearch.domain.model.SortOrder
-import com.prajwalch.torrentsearch.util.FileSizeUtils
+import com.prajwalch.torrentsearch.domain.model.Torrent
+import com.prajwalch.torrentsearch.filter.TorrentFilters
+import com.prajwalch.torrentsearch.util.createSortComparator
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,7 +44,7 @@ sealed interface BookmarksState {
 
     data object EmptyNoMatches : BookmarksState
 
-    data class Ready(val bookmarks: List<BookmarkedTorrent>) : BookmarksState
+    data class Ready(val bookmarks: List<Torrent>) : BookmarksState
 }
 
 /** ViewModel that handles the business logic of Bookmarks screen. */
@@ -65,10 +66,8 @@ class BookmarksViewModel(
             if (bookmarks.isEmpty()) return@combine BookmarksState.Empty
 
             val filteredBookmarks = bookmarks
-                .filterIf(!nsfwModeEnabled) { !it.torrent.isNSFW }
-                .filterIf(filterQuery.isNotBlank()) {
-                    it.torrent.name.contains(filterQuery, ignoreCase = true)
-                }
+                .filterIf(!nsfwModeEnabled, TorrentFilters.isSfw())
+                .filterIf(filterQuery.isNotBlank(), TorrentFilters.matchesQuery(filterQuery))
 
             if (filteredBookmarks.isEmpty()) {
                 BookmarksState.EmptyNoMatches
@@ -118,8 +117,8 @@ class BookmarksViewModel(
         }
     }
 
-    /** Deletes bookmark associated with the given id. */
-    fun deleteBookmarkById(id: Long) {
+    /** Deletes bookmark associated with the given ID. */
+    fun deleteBookmarkById(id: String) {
         viewModelScope.launch {
             bookmarkRepository.deleteBookmarkById(id)
         }
@@ -191,27 +190,9 @@ class BookmarksViewModel(
     }
 }
 
-private fun List<BookmarkedTorrent>.filterIf(
+private fun List<Torrent>.filterIf(
     condition: Boolean,
-    predicate: (BookmarkedTorrent) -> Boolean,
-): List<BookmarkedTorrent> {
+    predicate: (Torrent) -> Boolean,
+): List<Torrent> {
     return if (condition) this.filter(predicate) else this
-}
-
-private fun createSortComparator(
-    criteria: SortCriteria,
-    order: SortOrder,
-): Comparator<BookmarkedTorrent> {
-    val comparator: Comparator<BookmarkedTorrent> = when (criteria) {
-        SortCriteria.Name -> compareBy { it.torrent.name }
-        SortCriteria.Seeders -> compareBy { it.torrent.seeders }
-        SortCriteria.Peers -> compareBy { it.torrent.peers }
-        SortCriteria.FileSize -> compareBy { it.torrent.size?.let(FileSizeUtils::getBytes) }
-        SortCriteria.Date -> compareBy { it.torrent.uploadDate }
-    }
-
-    return when (order) {
-        SortOrder.Ascending -> comparator
-        SortOrder.Descending -> comparator.reversed()
-    }
 }
