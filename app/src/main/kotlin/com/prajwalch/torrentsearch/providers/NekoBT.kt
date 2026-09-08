@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -17,8 +18,11 @@ import org.jsoup.nodes.Element
 //       https://nekobt.to/search?query=one
 //       https://nekobt.to/api/v1/torrents/search?sort_by=seeders (top)
 //       https://nekobt.to/api/v1/torrents/search?sort_by=rss (latest)
-class NekoBT(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
-    TopTorrentsProvider, TorrentDetailsProvider {
+class NekoBT(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider,
+    TorrentDetailsProvider {
     override val id = "nekobt"
     override val name = "NekoBT"
     override val url = "https://nekobt.to"
@@ -97,7 +101,7 @@ private class NekoBTResultsPageParser(
             uploadDate = uploadDate,
             category = Category.Anime,
             descriptionPageUrl = detailsPageUrl,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
         )
     }

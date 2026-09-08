@@ -54,15 +54,15 @@ class ProviderTest {
         println(
             """
             ✅ First Torrent Result:
-            ├── Name          : ${first.name}
-            ├── Magnet Uri    : ${first.magnetUri()}
-            ├── Size          : ${first.size}
-            ├── Seeders       : ${first.seeders}
-            ├── Peers         : ${first.peers}
-            ├── Upload Date   : ${first.uploadDate}
-            ├── Category      : ${first.category}
-            └── Page URL      : ${first.descriptionPageUrl}
-            └── Provider Name : ${first.providerName}
+            ├── Name                : ${first.name}
+            ├── Magnet Uri State    : ${first.magnetUriState}
+            ├── Size                : ${first.size}
+            ├── Seeders             : ${first.seeders}
+            ├── Peers               : ${first.peers}
+            ├── Upload Date         : ${first.uploadDate}
+            ├── Category            : ${first.category}
+            └── Page URL            : ${first.descriptionPageUrl}
+            └── Provider Name       : ${first.providerName}
             """.trimIndent()
         )
 
@@ -97,15 +97,15 @@ class ProviderTest {
             println(
                 """
                 ✅ First Torrent Result:
-                ├── Name          : ${first.name}
-                ├── Magnet Uri    : ${first.magnetUri()}
-                ├── Size          : ${first.size}
-                ├── Seeders       : ${first.seeders}
-                ├── Peers         : ${first.peers}
-                ├── Upload Date   : ${first.uploadDate}
-                ├── Category      : ${first.category}
-                └── Page URL      : ${first.descriptionPageUrl}
-                └── Provider Name : ${first.providerName}
+                ├── Name                : ${first.name}
+                ├── Magnet Uri State    : ${first.magnetUriState}
+                ├── Size                : ${first.size}
+                ├── Seeders             : ${first.seeders}
+                ├── Peers               : ${first.peers}
+                ├── Upload Date         : ${first.uploadDate}
+                ├── Category            : ${first.category}
+                └── Page URL            : ${first.descriptionPageUrl}
+                └── Provider Name       : ${first.providerName}
                 """.trimIndent()
             )
         }

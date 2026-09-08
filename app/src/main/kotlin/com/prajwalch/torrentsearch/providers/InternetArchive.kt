@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.extension.asObject
@@ -17,7 +18,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
-class InternetArchive(private val networkClient: NetworkClient) : SearchProvider,
+class InternetArchive(private val networkClient: NetworkClient) :
+    SearchProvider,
     TorrentDetailsProvider {
     override val id = "internetarchive"
     override val name = "InternetArchive"
@@ -98,6 +100,7 @@ private class IAResultsJsonParser(
     private fun parseDocObject(obj: JsonObject): Torrent? {
         val name = obj.getString("title") ?: return null
         val infoHash = obj.getString("btih")?.lowercase()?.trim() ?: return null
+        val magnetUri = TorrentUtils.createMagnetUri(infoHash)
 
         val torrentRemoteId = obj.getString("identifier")
         val torrentId = TorrentUtils.createTorrentId(
@@ -117,6 +120,7 @@ private class IAResultsJsonParser(
             uploadDate = uploadDate,
             category = category,
             providerName = providerName,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = descriptionPageUrl,
         )
     }

@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -15,8 +16,11 @@ import org.jsoup.nodes.Element
 
 import java.time.Instant
 
-class UIndex(private val networkClient: NetworkClient) : SearchProvider, TorrentDetailsProvider,
-    LatestTorrentsProvider, TopTorrentsProvider {
+class UIndex(private val networkClient: NetworkClient) :
+    SearchProvider,
+    TorrentDetailsProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider {
     override val id = "uindex"
     override val name = "UIndex"
     override val url = "https://uindex.org"
@@ -133,8 +137,8 @@ private class UIndexResultsPageParser(
             providerName = providerName,
             uploadDate = uploadDate,
             category = category,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = detailsPageUrl,
-            magnetUri = magnetUri,
         )
     }
 

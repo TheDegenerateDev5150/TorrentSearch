@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -8,15 +9,16 @@ import com.prajwalch.torrentsearch.util.TorrentDateParser
 import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class OxTorrent(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
+class OxTorrent(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
     TopTorrentsProvider,
+    MagnetUriProvider,
     TorrentDetailsProvider {
     override val id = "oxtorrent"
     override val name = "OxTorrent"
@@ -40,7 +42,7 @@ class OxTorrent(private val networkClient: NetworkClient) : SearchProvider, Late
         Category.Music to "musique",
         Category.Series to "series",
     )
-    private val resultsPageParser = OxTorrentResultsPageParser(id, name, networkClient)
+    private val resultsPageParser = OxTorrentResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -73,46 +75,59 @@ class OxTorrent(private val networkClient: NetworkClient) : SearchProvider, Late
 
         return resultsPageParser.parse(html = responseHtml, pageUrl = requestUrl)
     }
+
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        return OxTorrentDetailsPageParser.extractMagnetUri(detailsPageHtml)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
+    }
 }
 
 private class OxTorrentResultsPageParser(
     private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
                 .select(LIST_ITEM)
-                .map { async { parseListItem(it) } }
-                .awaitAll()
-                .filterNotNull()
+                .mapNotNull(::parseListItem)
         }
 
-    private suspend fun parseListItem(listItem: Element): Torrent? {
-        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
-        val detailsPageHtml = networkClient.getText(detailsPageUrl)
-        val torrentDetails = OxTorrentDetailsPageParser.parse(
-            html = detailsPageHtml,
-            pageUrl = detailsPageUrl,
-        ) ?: return null
+    private fun parseListItem(listItem: Element): Torrent? {
+        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)
+            ?.attr("abs:href")
+            ?: return null
+        val name = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
+        val torrentId = TorrentUtils.createTorrentId(
+            providerId = providerId,
+            sourceId = detailsPageUrl,
+        )
+        val size = listItem.selectFirst(SIZE)?.ownText()
+        val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
+        val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
+        val category = listItem.selectFirst(CATEGORY)?.className()?.let(::getCategoryFromRaw)
 
         return Torrent(
-            id = TorrentUtils.createTorrentId(providerId, detailsPageUrl),
-            name = torrentDetails.name,
-            size = torrentDetails.size,
-            seeders = torrentDetails.seeders,
-            peers = torrentDetails.peers,
-            uploadDate = torrentDetails.uploadDate,
+            id = torrentId,
+            name = name,
+            size = size,
+            seeders = seeders,
+            peers = peers,
             providerName = providerName,
-            category = torrentDetails.category,
-            magnetUri = torrentDetails.magnetUri,
+            category = category,
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
             descriptionPageUrl = detailsPageUrl,
         )
     }
 
     private companion object {
         private const val LIST_ITEM = "table > tbody > tr"
+        private const val TORRENT_NAME = "td:nth-child(1) > a"
+        private const val SIZE = "td:nth-child(2)"
+        private const val SEEDERS = "td:nth-child(3)"
+        private const val PEERS = "td:nth-child(4)"
+        private const val CATEGORY = "td:nth-child(1) > i"
         private const val DETAILS_PAGE_URL = "td:nth-child(1) > a"
     }
 }
@@ -162,6 +177,11 @@ private object OxTorrentDetailsPageParser {
                 description = description,
                 posterUrl = posterUrl,
             )
+        }
+
+    suspend fun extractMagnetUri(detailsPageHtml: String): String? =
+        withContext(Dispatchers.Default) {
+            Jsoup.parse(detailsPageHtml).selectFirst(MAGNET_URL)?.attr("href")
         }
 }
 

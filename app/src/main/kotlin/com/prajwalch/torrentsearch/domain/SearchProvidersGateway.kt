@@ -41,6 +41,8 @@ class SearchProvidersGateway(
         private const val TAG = "SearchProvidersGateway"
     }
 
+    private val torrentIdToMagnetUri = mutableMapOf<String, String>()
+
     fun searchTorrents(query: String, category: Category): Flow<SearchResults> = flow {
         val limit = settingsRepository.maxNumResults.firstOrNull() ?: MaxNumResults.Unlimited
         emitAll(searchTorrents(query, category, limit))
@@ -169,5 +171,20 @@ class SearchProvidersGateway(
             cause = cause,
         )
         SearchProviderResult.Error(error)
+    }
+
+    suspend fun getMagnetUri(torrentId: String, sourceUrl: String, providerName: String): String {
+        val cachedMagnetUri = torrentIdToMagnetUri[torrentId]
+        if (cachedMagnetUri != null) {
+            return cachedMagnetUri
+        }
+
+        val magnetUriProvider = searchProvidersManager.findMagnetUriProviderByName(providerName)
+            ?: error("Couldn't find magnet URI provider named '$providerName'")
+
+        val magnetUri = magnetUriProvider.getMagnetUri(sourceUrl)
+        torrentIdToMagnetUri[torrentId] = magnetUri
+
+        return magnetUri
     }
 }

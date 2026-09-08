@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -14,11 +15,14 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
-class Bt4g(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
-    TopTorrentsProvider, TorrentDetailsProvider {
+class Bt4g(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider,
+    MagnetUriProvider,
+    TorrentDetailsProvider {
     override val id = "bt4g"
     override val name = "BT4G"
     override val url = "https://bt4gprx.com"
@@ -42,7 +46,6 @@ class Bt4g(private val networkClient: NetworkClient) : SearchProvider, LatestTor
         Category.Music to "audio",
         Category.Other to "other",
     )
-    private val detailsPageParser = Bt4gDetailsPageParser(networkClient)
     private val resultsPageParser = Bt4gResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -55,7 +58,7 @@ class Bt4g(private val networkClient: NetworkClient) : SearchProvider, LatestTor
 
     override suspend fun getDetails(detailsPageUrl: String): TorrentDetails? {
         val responseHtml = networkClient.getText(detailsPageUrl)
-        return detailsPageParser.parse(responseHtml)
+        return Bt4gDetailsPageParser.parse(responseHtml)
     }
 
     override suspend fun getLastestTorrents(category: Category): List<Torrent> {
@@ -70,6 +73,14 @@ class Bt4g(private val networkClient: NetworkClient) : SearchProvider, LatestTor
         val responseHtml = networkClient.getText(requestUrl)
 
         return resultsPageParser.parse(html = responseHtml, pageUrl = requestUrl)
+    }
+
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        val infoHash = Bt4gDetailsPageParser.extractInfoHash(detailsPageHtml)
+            ?: error("Failed to retrieve info hash from '$sourceUrl'")
+
+        return TorrentUtils.createMagnetUri(infoHash)
     }
 }
 
@@ -121,6 +132,7 @@ private class Bt4gResultsPageParser(
             uploadDate = uploadDate,
             category = category,
             providerName = providerName,
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
             descriptionPageUrl = detailsPageUrl,
         )
     }
@@ -137,22 +149,24 @@ private class Bt4gResultsPageParser(
     }
 }
 
-private class Bt4gDetailsPageParser(private val networkClient: NetworkClient) {
-    private companion object {
-        private const val TORRENT_NAME = "h1.notion-detail-title"
-        private const val SIZE = "span.notion-property-label:containsOwn(File Size)"
-        private const val SEEDERS = "span#seeders"
-        private const val PEERS = "span#leechers"
-        private const val UPLOAD_DATE = "span.notion-property-label:containsOwn(Creation Time)"
-        private const val CATEGORY = "span.notion-property-label:containsOwn(File Type)"
-        private const val LAST_CHECKED = "span.notion-property-label:containsOwn(Updated)"
-        private const val MAGNET_LINK_BTN = """a[href^="//downloadtorrentfile.com/hash/"]"""
-    }
+private object Bt4gDetailsPageParser {
+    private const val TORRENT_NAME = "h1.notion-detail-title"
+    private const val SIZE = "span.notion-property-label:containsOwn(File Size)"
+    private const val SEEDERS = "span#seeders"
+    private const val PEERS = "span#leechers"
+    private const val UPLOAD_DATE = "span.notion-property-label:containsOwn(Creation Time)"
+    private const val CATEGORY = "span.notion-property-label:containsOwn(File Type)"
+    private const val LAST_CHECKED = "span.notion-property-label:containsOwn(Updated)"
+    private const val MAGNET_LINK_BTN = """a[href^="//downloadtorrentfile.com/hash/"]"""
 
     suspend fun parse(html: String): TorrentDetails? = withContext(Dispatchers.Default) {
         val html = Jsoup.parse(html)
 
-        val infoHash = extractInfoHash(html) ?: return@withContext null
+        val infoHash = html.selectFirst(MAGNET_LINK_BTN)
+            ?.attr("href")
+            ?.removePrefix("//downloadtorrentfile.com/hash/")
+            ?.takeWhile { it != '?' }
+            ?: return@withContext null
         val torrentName = html.selectFirst(TORRENT_NAME)?.ownText() ?: return@withContext null
         val size = html.selectFirst(SIZE)
             ?.nextElementSibling()
@@ -188,18 +202,9 @@ private class Bt4gDetailsPageParser(private val networkClient: NetworkClient) {
         )
     }
 
-    suspend fun getInfoHash(detailsPageUrl: String): String? {
-        val detailsPageHtml = withContext(Dispatchers.Default) {
-            networkClient.getText(detailsPageUrl)
-        }
-
-        return withContext(Dispatchers.Default) {
-            extractInfoHash(Jsoup.parse(detailsPageHtml))
-        }
-    }
-
-    private fun extractInfoHash(html: Document): String? {
-        return html.selectFirst(MAGNET_LINK_BTN)
+    suspend fun extractInfoHash(html: String): String? = withContext(Dispatchers.Default) {
+        Jsoup.parse(html)
+            .selectFirst(MAGNET_LINK_BTN)
             ?.attr("href")
             ?.removePrefix("//downloadtorrentfile.com/hash/")
             ?.takeWhile { it != '?' }

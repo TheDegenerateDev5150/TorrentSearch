@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -64,6 +65,7 @@ private class FileMoodResultsPageParser(
             .lowercase()
             .trim()
         val torrentId = TorrentUtils.createTorrentId(providerId, infoHash)
+        val magnetUri = TorrentUtils.createMagnetUri(infoHash)
         val size = listItem.selectFirst(SIZE)?.text()
         val (seeders, peers) = listItem.selectFirst(SEEDERS_PEERS)?.text()
             ?.split('/')
@@ -77,6 +79,7 @@ private class FileMoodResultsPageParser(
             peers = peers?.toUIntOrNull(),
             category = Category.Other,
             providerName = providerName,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = descriptionPageUrl,
         )
     }

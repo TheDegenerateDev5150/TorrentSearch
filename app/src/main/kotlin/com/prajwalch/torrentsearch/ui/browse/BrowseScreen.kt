@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboard
@@ -42,12 +43,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
-import com.prajwalch.torrentsearch.domain.model.MagnetUri
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.ui.TorrentFileDownloadEffect
 import com.prajwalch.torrentsearch.ui.browse.component.BrowseFilters
 import com.prajwalch.torrentsearch.ui.browse.component.TorrentList
 import com.prajwalch.torrentsearch.ui.browse.component.TorrentsUnavailableState
+import com.prajwalch.torrentsearch.ui.component.ActionListItem
 import com.prajwalch.torrentsearch.ui.component.AnimatedScrollToTopFAB
 import com.prajwalch.torrentsearch.ui.component.FilterSearchBar
 import com.prajwalch.torrentsearch.ui.component.NoInternetConnectionState
@@ -68,8 +69,8 @@ fun BrowseScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToProviders: () -> Unit,
-    onOpenMagnetLink: (MagnetUri) -> Unit,
-    onShareMagnetLink: (MagnetUri) -> Unit,
+    onOpenMagnetLink: (String) -> Unit,
+    onShareMagnetLink: (String) -> Unit,
     onOpenDescriptionPage: (url: String, providerName: String) -> Unit,
     onShareDescriptionPageUrl: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -99,35 +100,36 @@ fun BrowseScreen(
 
         TorrentActionsBottomSheet(
             onDismiss = { selectedTorrent = null },
-            title = torrent.name,
-            showNSFWBadge = torrent.isNSFW,
-            onBookmarkTorrent = {
-                viewModel.bookmarkTorrent(torrent)
+            torrent = torrent,
+            customAction = {
+                ActionListItem(
+                    modifier = Modifier.clip(MaterialTheme.shapes.large),
+                    onClick = {
+                        viewModel.bookmarkTorrent(torrent)
+                        selectedTorrent = null
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(torrentBookmarkedMessage)
+                        }
+                    },
+                    icon = painterResource(R.drawable.ic_star),
+                    label = stringResource(R.string.torrent_list_action_bookmark_torrent),
+                )
+            },
+            onOpenMagnetLink = onOpenMagnetLink,
+            onDownloadTorrentFile = { downloadUrl, magnetUri ->
+                viewModel.downloadTorrentFile(
+                    downloadUrl = downloadUrl,
+                    magnetUri = magnetUri,
+                    fileName = torrent.name,
+                )
+            },
+            onCopyMagnetLink = { magnetUri ->
                 coroutineScope.launch {
-                    snackbarHostState.showSnackbar(message = torrentBookmarkedMessage)
+                    clipboard.copyText(magnetUri)
+                    snackbarHostState.showSnackbar(magnetLinkCopiedMessage)
                 }
             },
-            onOpenMagnetLink = { onOpenMagnetLink(torrent.magnetUri()) },
-            onDownloadTorrentFile = {
-                if (torrent.fileDownloadLink != null) {
-                    viewModel.downloadTorrentFile(
-                        url = torrent.fileDownloadLink,
-                        fileName = torrent.name,
-                    )
-                } else {
-                    viewModel.downloadTorrentFileUsingInfoHash(
-                        infoHash = "",
-                        fileName = torrent.name,
-                    )
-                }
-            },
-            onCopyMagnetLink = {
-                coroutineScope.launch {
-                    clipboard.copyText(text = torrent.magnetUri())
-                    snackbarHostState.showSnackbar(message = magnetLinkCopiedMessage)
-                }
-            },
-            onShareMagnetLink = { onShareMagnetLink(torrent.magnetUri()) },
+            onShareMagnetLink = onShareMagnetLink,
             onOpenDescriptionPage = {
                 torrent.descriptionPageUrl?.let {
                     onOpenDescriptionPage(it, torrent.providerName)
@@ -146,7 +148,6 @@ fun BrowseScreen(
                     onShareDescriptionPageUrl(it)
                 }
             },
-            enableDescriptionPageActions = torrent.descriptionPageUrl != null,
         )
     }
 

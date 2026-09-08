@@ -1,16 +1,18 @@
 package com.prajwalch.torrentsearch.ui.component
 
-import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CornerBasedShape
-import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -22,160 +24,171 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.rememberViewModelStoreOwner
 
 import com.prajwalch.torrentsearch.R
-import com.prajwalch.torrentsearch.ui.theme.TorrentSearchTheme
+import com.prajwalch.torrentsearch.domain.SearchProvidersGateway
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
+import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.ui.theme.spaces
 
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-private data class TorrentAction(
-    @field:DrawableRes val icon: Int,
-    @field:StringRes val label: Int,
-    val onClick: (() -> Unit)?,
-    val enabled: Boolean = true,
-)
+import org.koin.androidx.compose.koinViewModel
+import org.koin.core.annotation.InjectedParam
+import org.koin.core.annotation.KoinViewModel
+import org.koin.core.parameter.parametersOf
+
+sealed interface MagnetUriUiState {
+    data object Loading : MagnetUriUiState
+
+    data object Fetching : MagnetUriUiState
+
+    data class Ready(val magnetUri: String) : MagnetUriUiState
+}
+
+@KoinViewModel
+class TorrentActionsViewModel(
+    @InjectedParam private val torrent: Torrent,
+    private val searchProvidersGateway: SearchProvidersGateway,
+) : ViewModel() {
+    val magnetUriUiState: StateFlow<MagnetUriUiState> = flow {
+        when (val magnetUriState = torrent.magnetUriState) {
+            is MagnetUriState.Available -> {
+                emit(MagnetUriUiState.Ready(magnetUriState.magnetUri))
+            }
+
+            is MagnetUriState.FetchRequired -> {
+                emit(MagnetUriUiState.Fetching)
+
+                val magnetUri = searchProvidersGateway.getMagnetUri(
+                    torrentId = torrent.id,
+                    sourceUrl = magnetUriState.url,
+                    providerName = torrent.providerName
+                )
+                emit(MagnetUriUiState.Ready(magnetUri))
+            }
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = MagnetUriUiState.Loading,
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TorrentActionsBottomSheet(
-    onDismiss: () -> Unit,
-    title: String,
-    onOpenMagnetLink: () -> Unit,
-    onCopyMagnetLink: () -> Unit,
-    onShareMagnetLink: () -> Unit,
+    torrent: Torrent,
+    onOpenMagnetLink: (String) -> Unit,
+    onDownloadTorrentFile: (url: String?, magnetUri: String) -> Unit,
+    onCopyMagnetLink: (String) -> Unit,
+    onShareMagnetLink: (String) -> Unit,
     onOpenDescriptionPage: () -> Unit,
     onCopyDescriptionPageUrl: () -> Unit,
     onShareDescriptionPageUrl: () -> Unit,
-    showNSFWBadge: Boolean,
+    onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    enableDescriptionPageActions: Boolean = true,
-    onBookmarkTorrent: (() -> Unit)? = null,
-    onDeleteBookmark: (() -> Unit)? = null,
-    onDownloadTorrentFile: (() -> Unit)? = null,
+    customAction: @Composable (() -> Unit)? = null,
 ) {
+    val viewModelStoreOwner = rememberViewModelStoreOwner()
+    val viewModel = koinViewModel<TorrentActionsViewModel>(
+        viewModelStoreOwner = viewModelStoreOwner,
+        parameters = { parametersOf(torrent) },
+    )
+    val magnetUriUiState by viewModel.magnetUriUiState.collectAsStateWithLifecycle()
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
 
-    val actionWithDismiss = { action: () -> Unit ->
-        action()
+    fun actionWithDismiss(action: () -> Unit): () -> Unit {
+        return {
+            action()
 
-        coroutineScope.launch {
-            sheetState.hide()
-        }.invokeOnCompletion {
-            onDismiss()
+            coroutineScope.launch {
+                sheetState.hide()
+            }.invokeOnCompletion {
+                onDismiss()
+            }
         }
-
-        Unit
     }
-    val primaryActions = listOf(
-        TorrentAction(
-            icon = R.drawable.ic_magnet,
-            label = R.string.torrent_list_action_open_magnet_link,
-            onClick = onOpenMagnetLink,
-        ),
-        TorrentAction(
-            icon = R.drawable.ic_download,
-            label = R.string.torrent_list_action_download_torrent_file,
-            onClick = onDownloadTorrentFile,
-        ),
-        TorrentAction(
-            icon = R.drawable.ic_copy,
-            label = R.string.torrent_list_action_copy_magnet_link,
-            onClick = onCopyMagnetLink,
-        ),
-        TorrentAction(
-            icon = R.drawable.ic_share,
-            label = R.string.torrent_list_action_share_magnet_link,
-            onClick = onShareMagnetLink,
-        ),
-    )
-    val secondaryActions = listOf(
-        TorrentAction(
-            icon = R.drawable.ic_public,
-            label = R.string.torrent_list_action_open_description_page,
-            onClick = onOpenDescriptionPage,
-            enabled = enableDescriptionPageActions,
-        ),
-        TorrentAction(
-            icon = R.drawable.ic_copy,
-            label = R.string.torrent_list_action_copy_description_page_url,
-            onClick = onCopyDescriptionPageUrl,
-            enabled = enableDescriptionPageActions,
-        ),
-        TorrentAction(
-            icon = R.drawable.ic_share,
-            label = R.string.torrent_list_action_share_description_page_url,
-            onClick = onShareDescriptionPageUrl,
-            enabled = enableDescriptionPageActions,
-        ),
-    )
 
     ModalBottomSheet(
         modifier = modifier,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        BottomSheetHeader(
-            modifier = Modifier.padding(horizontal = MaterialTheme.spaces.large),
-            title = title,
-            showNSFWBadge = showNSFWBadge,
-        )
-
         Column(
             modifier = Modifier
+                .padding(horizontal = MaterialTheme.spaces.large)
+                .padding(bottom = MaterialTheme.spaces.large)
                 .verticalScroll(state = rememberScrollState())
-                .padding(all = MaterialTheme.spaces.large),
-            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.large),
+                .animateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.medium),
         ) {
-            // These two actions are screen specific therefore shouldn't belong here.
-            Column {
-                onBookmarkTorrent?.let {
-                    ActionListItem(
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium),
-                        onClick = { actionWithDismiss(it) },
-                        icon = R.drawable.ic_star,
-                        label = stringResource(R.string.torrent_list_action_bookmark_torrent),
-                        colors = ListItemDefaults.colors(
-                            leadingIconColor = MaterialTheme.colorScheme.secondary,
-                            headlineColor = MaterialTheme.colorScheme.secondary,
-                        ),
-                    )
-                }
-                onDeleteBookmark?.let {
-                    ActionListItem(
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium),
-                        onClick = { actionWithDismiss(it) },
-                        icon = R.drawable.ic_delete,
-                        label = stringResource(R.string.torrent_list_action_delete_bookmark),
-                        colors = ListItemDefaults.colors(
-                            leadingIconColor = MaterialTheme.colorScheme.error,
-                            headlineColor = MaterialTheme.colorScheme.error,
-                        ),
-                    )
+            BottomSheetHeader(title = torrent.name, showNSFWBadge = torrent.isNSFW)
+            HorizontalDivider()
+
+            AnimatedContent(magnetUriUiState) { targetMagnetUriState ->
+                when (targetMagnetUriState) {
+                    MagnetUriUiState.Loading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(472.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    MagnetUriUiState.Fetching -> {
+                        ContentState(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(472.dp),
+                            icon = { CircularProgressIndicator() },
+                            title = { Text("Getting magnet link...") },
+                        )
+                    }
+
+                    is MagnetUriUiState.Ready -> {
+                        val magnetUri = targetMagnetUriState.magnetUri
+
+                        ActionColumn(
+                            onOpenMagnetLink = actionWithDismiss { onOpenMagnetLink(magnetUri) },
+                            onDownloadTorrentFile = actionWithDismiss {
+                                onDownloadTorrentFile(torrent.fileDownloadLink, magnetUri)
+                            },
+                            onCopyMagnetLink = actionWithDismiss { onCopyMagnetLink(magnetUri) },
+                            onShareMagnetLink = actionWithDismiss { onShareMagnetLink(magnetUri) },
+                            onOpenDescriptionPage = actionWithDismiss(onOpenDescriptionPage),
+                            onCopyDescriptionPageUrl = actionWithDismiss(onCopyDescriptionPageUrl),
+                            onShareDescriptionPageUrl = actionWithDismiss(onShareDescriptionPageUrl),
+                            enableDescriptionPageAction = torrent.descriptionPageUrl != null,
+                            customAction = customAction,
+                        )
+                    }
                 }
             }
-            ActionList(
-                actions = primaryActions,
-                onInvokeAction = { actionWithDismiss(it) },
-            )
-            ActionList(
-                actions = secondaryActions,
-                onInvokeAction = { actionWithDismiss(it) }
-            )
         }
     }
 }
@@ -200,89 +213,120 @@ private fun BottomSheetHeader(
             maxLines = 3,
             style = MaterialTheme.typography.titleMedium,
         )
-        HorizontalDivider()
     }
 }
 
 @Composable
-private fun ActionList(
-    actions: List<TorrentAction>,
-    onInvokeAction: (() -> Unit) -> Unit,
+private fun ActionColumn(
+    onOpenMagnetLink: () -> Unit,
+    onDownloadTorrentFile: () -> Unit,
+    onCopyMagnetLink: () -> Unit,
+    onShareMagnetLink: () -> Unit,
+    onOpenDescriptionPage: () -> Unit,
+    onCopyDescriptionPageUrl: () -> Unit,
+    onShareDescriptionPageUrl: () -> Unit,
     modifier: Modifier = Modifier,
+    enableDescriptionPageAction: Boolean = true,
+    customAction: @Composable (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier) {
-        for ((idx, action) in actions.withIndex()) {
-            if (action.onClick == null) continue
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.medium),
+    ) {
+        customAction?.invoke()
 
-            val shape = ActionListItemShapes.shape(idx, actions.size)
-
-            ActionListItem(
-                modifier = Modifier.clip(shape = shape),
-                onClick = { onInvokeAction(action.onClick) },
-                icon = action.icon,
-                label = stringResource(action.label),
-                enabled = action.enabled,
-            )
-        }
-    }
-}
-
-private object ActionListItemShapes {
-    val DefaultShape: Shape = RectangleShape
-
-    val RoundedShape: CornerBasedShape
-        @Composable get() = MaterialTheme.shapes.large
-
-    @Composable
-    fun shape(index: Int, count: Int): Shape {
-        val baseRoundedShape = RoundedShape
-
-        return remember(index, count, DefaultShape, baseRoundedShape) {
-            when {
-                count == 1 -> baseRoundedShape
-                index == 0 -> baseRoundedShape.copy(
-                    bottomStart = CornerSize(0.dp),
-                    bottomEnd = CornerSize(0.dp),
-                )
-
-                index == count - 1 -> baseRoundedShape.copy(
-                    topStart = CornerSize(0.dp),
-                    topEnd = CornerSize(0.dp),
-                )
-
-                else -> DefaultShape
-            }
-        }
-    }
-}
-
-@Composable
-private fun ActionListItem(
-    @DrawableRes icon: Int,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    colors: ListItemColors = ListItemDefaults.colors(),
-) {
-    val baseColors = colors.copy(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    )
-    val resolvedColors = if (enabled) {
-        baseColors
-    } else {
-        baseColors.copy(
-            headlineColor = baseColors.disabledHeadlineColor,
-            leadingIconColor = baseColors.disabledLeadingIconColor,
+        PrimaryActionColumn(
+            onOpenMagnetLink = onOpenMagnetLink,
+            onDownloadTorrentFile = onDownloadTorrentFile,
+            onCopyMagnetLink = onCopyMagnetLink,
+            onShareMagnetLink = onShareMagnetLink,
+        )
+        DetailsPageActionColumn(
+            onOpenDescriptionPage = onOpenDescriptionPage,
+            onCopyDescriptionPageUrl = onCopyDescriptionPageUrl,
+            onShareDescriptionPageUrl = onShareDescriptionPageUrl,
+            enabled = enableDescriptionPageAction,
         )
     }
+}
 
+@Composable
+private fun PrimaryActionColumn(
+    onOpenMagnetLink: () -> Unit,
+    onDownloadTorrentFile: () -> Unit,
+    onCopyMagnetLink: () -> Unit,
+    onShareMagnetLink: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.clip(MaterialTheme.shapes.large)) {
+        ActionListItem(
+            onClick = onOpenMagnetLink,
+            icon = painterResource(R.drawable.ic_magnet),
+            label = stringResource(R.string.torrent_list_action_open_magnet_link),
+        )
+        ActionListItem(
+            onClick = onDownloadTorrentFile,
+            icon = painterResource(R.drawable.ic_download),
+            label = stringResource(R.string.torrent_list_action_download_torrent_file),
+        )
+        ActionListItem(
+            onClick = onCopyMagnetLink,
+            icon = painterResource(R.drawable.ic_copy),
+            label = stringResource(R.string.torrent_list_action_copy_magnet_link),
+        )
+        ActionListItem(
+            onClick = onShareMagnetLink,
+            icon = painterResource(R.drawable.ic_share),
+            label = stringResource(R.string.torrent_list_action_share_magnet_link),
+        )
+    }
+}
+
+@Composable
+private fun DetailsPageActionColumn(
+    onOpenDescriptionPage: () -> Unit,
+    onCopyDescriptionPageUrl: () -> Unit,
+    onShareDescriptionPageUrl: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Column(modifier = modifier.clip(MaterialTheme.shapes.large)) {
+        ActionListItem(
+            onClick = onOpenDescriptionPage,
+            icon = painterResource(R.drawable.ic_link),
+            label = stringResource(R.string.torrent_list_action_open_description_page),
+            enabled = enabled,
+        )
+        ActionListItem(
+            onClick = onCopyDescriptionPageUrl,
+            icon = painterResource(R.drawable.ic_copy),
+            label = stringResource(R.string.torrent_list_action_copy_description_page_url),
+            enabled = enabled,
+        )
+        ActionListItem(
+            onClick = onShareDescriptionPageUrl,
+            icon = painterResource(R.drawable.ic_share),
+            label = stringResource(R.string.torrent_list_action_share_description_page_url),
+            enabled = enabled,
+        )
+    }
+}
+
+@Composable
+fun ActionListItem(
+    onClick: () -> Unit,
+    icon: Painter,
+    label: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: ListItemColors = ListItemDefaults.colors(enabled),
+) {
     ListItem(
         modifier = modifier.clickable(onClick = onClick, enabled = enabled),
         leadingContent = {
             Icon(
                 modifier = Modifier.size(22.dp),
-                painter = painterResource(icon),
+                painter = icon,
                 contentDescription = null,
             )
         },
@@ -293,26 +337,40 @@ private fun ActionListItem(
                 style = MaterialTheme.typography.bodyMedium,
             )
         },
-        colors = resolvedColors,
+        colors = colors,
     )
 }
 
-@Preview
 @Composable
-private fun TorrentActionsBottomSheetPreview() {
-    TorrentSearchTheme {
-        TorrentActionsBottomSheet(
-            onDismiss = {},
-            title = "Torrent Actions Bottom Sheet Title",
-            onOpenMagnetLink = {},
-            onCopyMagnetLink = {},
-            onShareMagnetLink = {},
-            onOpenDescriptionPage = {},
-            onCopyDescriptionPageUrl = {},
-            onShareDescriptionPageUrl = {},
-            showNSFWBadge = true,
-            enableDescriptionPageActions = true,
-            onDownloadTorrentFile = {},
-        )
+private fun ListItemDefaults.colors(enabled: Boolean): ListItemColors {
+    return if (enabled) {
+        colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    } else {
+        with(colors()) {
+            copy(
+                headlineColor = disabledHeadlineColor,
+                leadingIconColor = disabledLeadingIconColor,
+            )
+        }
     }
 }
+
+//@Preview
+//@Composable
+//private fun TorrentActionsBottomSheetPreview() {
+//    TorrentSearchTheme {
+//        TorrentActionsBottomSheet(
+//            onDismiss = {},
+//            title = "Torrent Actions Bottom Sheet Title",
+//            onOpenMagnetLink = {},
+//            onCopyMagnetLink = {},
+//            onShareMagnetLink = {},
+//            onOpenDescriptionPage = {},
+//            onCopyDescriptionPageUrl = {},
+//            onShareDescriptionPageUrl = {},
+//            showNSFWBadge = true,
+//            enableDescriptionPageActions = true,
+//            onDownloadTorrentFile = {},
+//        )
+//    }
+//}

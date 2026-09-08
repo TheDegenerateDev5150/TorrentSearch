@@ -2,9 +2,6 @@ package com.prajwalch.torrentsearch.domain.model
 
 import java.time.Instant
 
-/** Represents a magnet URI. */
-typealias MagnetUri = String
-
 /** Metadata information of a torrent */
 data class Torrent(
     /** Unique ID of the torrent. */
@@ -25,8 +22,8 @@ data class Torrent(
     val category: Category? = null,
     /** URL of the page where the torrent details is available. */
     val descriptionPageUrl: String? = null,
-    /** The magnet URI of the torrent. */
-    val magnetUri: String? = null,
+    /** Magnet URI state. */
+    val magnetUriState: MagnetUriState,
     /**
      * A URL from where .torrent file can be downloaded.
      */
@@ -37,6 +34,10 @@ data class Torrent(
 
     /** Indicates if this torrent is dead. */
     val isDead get() = (seeders == 0u && peers == 0u)
+}
 
-    fun magnetUri(): String = magnetUri ?: ""
+sealed interface MagnetUriState {
+    data class Available(val magnetUri: String) : MagnetUriState
+
+    data class FetchRequired(val url: String) : MagnetUriState
 }

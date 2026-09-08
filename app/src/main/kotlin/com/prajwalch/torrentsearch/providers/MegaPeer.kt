@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -109,6 +110,7 @@ private class MegaPeerResultsPageParser(
             peers = peers,
             uploadDate = uploadDate,
             providerName = providerName,
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
             fileDownloadLink = fileDownloadLink,
             descriptionPageUrl = detailsPageUrl,
         )

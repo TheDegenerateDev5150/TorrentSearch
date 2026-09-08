@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -13,8 +14,10 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class LinuxTracker(private val networkClient: NetworkClient) : SearchProvider,
-    LatestTorrentsProvider, TopTorrentsProvider,
+class LinuxTracker(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider,
     TorrentDetailsProvider {
     override val id = "linuxtracker"
     override val name = "LinuxTracker"
@@ -91,7 +94,7 @@ private class LinuxTrackerResultsPageParser(
             uploadDate = uploadDate,
             category = Category.Apps,
             providerName = providerName,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
             descriptionPageUrl = detailsPageUrl,
         )

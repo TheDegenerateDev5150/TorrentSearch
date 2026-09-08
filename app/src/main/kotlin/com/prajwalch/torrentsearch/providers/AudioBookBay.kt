@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -8,15 +9,16 @@ import com.prajwalch.torrentsearch.util.TorrentDateParser
 import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class AudioBookBay(private val networkClient: NetworkClient) : SearchProvider,
-    LatestTorrentsProvider, TorrentDetailsProvider {
+class AudioBookBay(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
+    MagnetUriProvider,
+    TorrentDetailsProvider {
     override val id = "audiobookbay"
     override val name = "AudioBookBay"
     override val url = "https://audiobookbay.lu"
@@ -38,6 +40,12 @@ class AudioBookBay(private val networkClient: NetworkClient) : SearchProvider,
         return resultsPageParser.parse(html = responseHtml, pageUrl = url)
     }
 
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        return AudioBookBayDetailsPageParser.extractMagnetUri(detailsPageHtml)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
+    }
+
     override suspend fun getDetails(detailsPageUrl: String): TorrentDetails? {
         val responseHtml = networkClient.getText(detailsPageUrl)
         return AudioBookBayDetailsPageParser.parse(responseHtml)
@@ -52,9 +60,7 @@ private class AudioBookBayResultsPageParser(
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
                 .select(LIST_ITEM)
-                .map { async { parseListItem(it) } }
-                .awaitAll()
-                .filterNotNull()
+                .mapNotNull(::parseListItem)
         }
 
     private fun parseListItem(listItem: Element): Torrent? {
@@ -85,6 +91,7 @@ private class AudioBookBayResultsPageParser(
             uploadDate = uploadDate,
             category = Category.Books,
             providerName = providerName,
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
             descriptionPageUrl = detailsPageUrl,
         )
     }
@@ -148,5 +155,13 @@ private object AudioBookBayDetailsPageParser {
             description = description,
             posterUrl = posterUrl,
         )
+    }
+
+    suspend fun extractMagnetUri(html: String): String? = withContext(Dispatchers.Default) {
+        Jsoup.parse(html)
+            .selectFirst(INFO_HASH)
+            ?.nextElementSibling()
+            ?.ownText()
+            ?.let { infoHash -> TorrentUtils.createMagnetUri(infoHash) }
     }
 }

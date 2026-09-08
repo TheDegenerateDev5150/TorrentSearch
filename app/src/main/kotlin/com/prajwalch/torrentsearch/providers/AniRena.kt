@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -13,9 +14,11 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class AniRena(private val networkClient: NetworkClient) : SearchProvider,
+class AniRena(private val networkClient: NetworkClient) :
+    SearchProvider,
     LatestTorrentsProvider,
     TopTorrentsProvider,
+    MagnetUriProvider,
     TorrentDetailsProvider {
     override val id = "anirena"
     override val name = "AniRena"
@@ -41,7 +44,7 @@ class AniRena(private val networkClient: NetworkClient) : SearchProvider,
         Category.Series to "live",
         Category.Other to "other"
     )
-    private val resultsPageParser = AniRenaResultsPageParser(id, name, networkClient)
+    private val resultsPageParser = AniRenaResultsPageParser(id, name)
     private val detailsPageParser = AniRenaDetailsPageParser(networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -72,28 +75,34 @@ class AniRena(private val networkClient: NetworkClient) : SearchProvider,
         val responseHtml = networkClient.getText(detailsPageUrl)
         return detailsPageParser.parse(html = responseHtml, pageUrl = detailsPageUrl)
     }
+
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        return networkClient.get(sourceUrl).let { it.headers["Location"] }
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
+    }
 }
 
 private class AniRenaResultsPageParser(
     private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
                 .select(LIST_ITEM)
-                .mapNotNull { parseListItem(it) }
+                .mapNotNull(::parseListItem)
         }
 
-    private suspend fun parseListItem(listItem: Element): Torrent? {
+    private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
-        val magnetUriSourceLink = listItem.selectFirst(MAGNET_URI)?.attr("abs:href") ?: return null
-        val magnetUri = getMagnetUri(magnetUriSourceLink, networkClient) ?: return null
+        val magnetUriSourceUrl = listItem.selectFirst(MAGNET_URI_SRC_URL)
+            ?.attr("abs:href")
+            ?: return null
+//        val magnetUri = getMagnetUri(magnetUriSourceUrl, networkClient) ?: return null
 
         val torrentRemoteId = listItem.selectFirst(TORRENT_ID)
             ?.attr("data-torrent-id")
-            ?: magnetUriSourceLink.removeSurrounding("/torrrents/", "/magnet")
+            ?: magnetUriSourceUrl.removeSurrounding("/torrrents/", "/magnet")
         val torrentId = TorrentUtils.createTorrentId(
             providerId = providerId,
             sourceId = torrentRemoteId,
@@ -124,7 +133,7 @@ private class AniRenaResultsPageParser(
             uploadDate = uploadDate,
             category = category,
             providerName = providerName,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.FetchRequired(magnetUriSourceUrl),
             fileDownloadLink = fileDownloadLink,
             descriptionPageUrl = detailsPageUrl,
         )
@@ -138,7 +147,7 @@ private class AniRenaResultsPageParser(
         private const val SEEDERS = "td.col-se > span.tl-se"
         private const val PEERS = "td.col-le > span.tl-le"
         private const val CATEGORY = "td.col-cat"
-        private const val MAGNET_URI = "td.col-actions > div.tl-actions > a:nth-child(1)"
+        private const val MAGNET_URI_SRC_URL = "td.col-actions > div.tl-actions > a:nth-child(1)"
         private const val FILE_DOWNLOAD_LINK = "td.col-actions > div.tl-actions > a:nth-child(2)"
         private const val DETAILS_PAGE_URL = TORRENT_NAME
     }

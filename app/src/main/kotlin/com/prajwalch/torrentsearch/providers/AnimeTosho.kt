@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -79,7 +80,7 @@ private class AnimeToshoResultsPageParser(
             uploadDate = uploadDate,
             category = Category.Anime,
             descriptionPageUrl = descriptionPageUrl,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
         )
     }

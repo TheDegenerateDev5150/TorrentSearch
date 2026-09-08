@@ -3,7 +3,7 @@ package com.prajwalch.torrentsearch.providers
 import androidx.core.net.toUri
 
 import com.prajwalch.torrentsearch.domain.model.Category
-import com.prajwalch.torrentsearch.domain.model.MagnetUri
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.extension.asObject
@@ -23,7 +23,9 @@ import kotlinx.serialization.json.JsonObject
 import org.jsoup.Jsoup
 import java.time.Instant
 
-class SubsPlease(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
+class SubsPlease(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
     TorrentDetailsProvider {
     override val id = "subsplease"
     override val name = "SubsPlease"
@@ -118,8 +120,8 @@ private class SubsPleaseResultsJsonParser(
             uploadDate = uploadDate,
             category = Category.Anime,
             descriptionPageUrl = detailsPageUrl,
-            magnetUri = magnetUri,
             providerName = providerName,
+            magnetUriState = MagnetUriState.Available(magnetUri),
         )
     }
 }
@@ -202,7 +204,7 @@ private class SubsPleaseDetailsPageParser(private val networkClient: NetworkClie
 }
 
 private object SubsPleaseUtils {
-    fun parseSizeFromMagnetUri(magnetUri: MagnetUri): String? {
+    fun parseSizeFromMagnetUri(magnetUri: String): String? {
         val magnetUri = magnetUri.toUri()
         // android.net.Uri.getQueryParamater() is not supported for magnet URI.
         return magnetUri.query

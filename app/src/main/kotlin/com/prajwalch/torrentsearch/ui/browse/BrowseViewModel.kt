@@ -13,11 +13,13 @@ import com.prajwalch.torrentsearch.domain.TorrentFileDownloadEvent
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloadState
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloader
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.filterIfAll
 import com.prajwalch.torrentsearch.domain.model.sortedWithComparator
 import com.prajwalch.torrentsearch.filter.TorrentFilters
 import com.prajwalch.torrentsearch.network.ConnectivityChecker
+import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.PersistentList
@@ -92,10 +94,10 @@ enum class BrowseSort {
  */
 @KoinViewModel
 class BrowseViewModel(
-    searchProvidersGateway: SearchProvidersGateway,
     connectivityChecker: ConnectivityChecker,
     settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
+    private val searchProvidersGateway: SearchProvidersGateway,
     private val bookmarkRepository: BookmarkRepository,
     private val viewedTorrentRepository: ViewedTorrentRepository,
     private val torrentFileDownloader: TorrentFileDownloader,
@@ -224,28 +226,51 @@ class BrowseViewModel(
 
     fun bookmarkTorrent(torrent: Torrent) {
         viewModelScope.launch {
-            bookmarkRepository.bookmarkTorrent(torrent = torrent)
-        }
-    }
+            val magnetUri = when (torrent.magnetUriState) {
+                is MagnetUriState.Available -> {
+                    torrent.magnetUriState.magnetUri
+                }
 
-    fun markAsViewed(infoHash: String) {
-        viewModelScope.launch {
-            viewedTorrentRepository.markAsViewed(infoHash)
-        }
-    }
+                is MagnetUriState.FetchRequired -> {
+                    searchProvidersGateway.getMagnetUri(
+                        torrentId = torrent.id,
+                        sourceUrl = torrent.magnetUriState.url,
+                        providerName = torrent.providerName,
+                    )
+                }
+            }
 
-    fun downloadTorrentFile(url: String, fileName: String) {
-        viewModelScope.launch {
-            torrentFileDownloader.download(url = url, fileName = fileName)
-        }
-    }
-
-    fun downloadTorrentFileUsingInfoHash(infoHash: String, fileName: String) {
-        viewModelScope.launch {
-            torrentFileDownloader.tryDownloadUsingInfoHash(
-                infoHash = infoHash,
-                fileName = fileName,
+            bookmarkRepository.createAndAddBookmark(
+                torrentId = torrent.id,
+                name = torrent.name,
+                magnetUri = magnetUri,
+                size = torrent.size,
+                seeders = torrent.seeders,
+                peers = torrent.seeders,
+                providerName = torrent.providerName,
+                uploadDate = torrent.uploadDate,
+                category = torrent.category,
+                descriptionPageUrl = torrent.descriptionPageUrl,
+                fileDownloadLink = torrent.fileDownloadLink,
             )
+//            bookmarkRepository.bookmarkTorrent(torrent = torrent)
+        }
+    }
+
+    fun markAsViewed(id: String) {
+        viewModelScope.launch {
+            viewedTorrentRepository.markAsViewed(id)
+        }
+    }
+
+    fun downloadTorrentFile(downloadUrl: String?, magnetUri: String, fileName: String) {
+        viewModelScope.launch {
+            if (downloadUrl != null) {
+                torrentFileDownloader.download(downloadUrl, fileName)
+            } else {
+                val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
+                torrentFileDownloader.tryDownloadUsingInfoHash(infoHash, fileName)
+            }
         }
     }
 

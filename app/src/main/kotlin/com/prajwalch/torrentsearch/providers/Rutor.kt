@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -13,8 +14,11 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class Rutor(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
-    TopTorrentsProvider, TorrentDetailsProvider {
+class Rutor(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider,
+    TorrentDetailsProvider {
     override val id = "rutorinfo"
     override val name = "Rutor"
     override val url = "https://rutor.info"
@@ -132,7 +136,7 @@ private class RutorResultsPageParser(
             uploadDate = uploadDate,
             category = searchCategory.takeIf { it != Category.All },
             providerName = providerName,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
             descriptionPageUrl = detailsPageUrl,
         )

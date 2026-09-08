@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.extension.asArray
 import com.prajwalch.torrentsearch.extension.asObject
@@ -103,7 +104,7 @@ class AniLibria(private val networkClient: NetworkClient) : SearchProvider {
         } ?: return null
 
         val size = obj.getLong("size")?.toFloat()?.let(FileSizeUtils::formatBytes)
-        val magnetUri = obj.getString("magnet")
+        val magnetUri = obj.getString("magnet") ?: TorrentUtils.createMagnetUri(infoHash)
         val seeders = obj.getUInt("seeders")
         val peers = obj.getUInt("leechers")
         val uploadDate = obj.getString("created_at")?.let(TorrentDateParser::parseIso)
@@ -121,7 +122,7 @@ class AniLibria(private val networkClient: NetworkClient) : SearchProvider {
             uploadDate = uploadDate,
             category = Category.Anime,
             descriptionPageUrl = descriptionPageUrl,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
         )
     }
 

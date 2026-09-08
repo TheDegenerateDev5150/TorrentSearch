@@ -2,6 +2,7 @@ package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -10,8 +11,6 @@ import com.prajwalch.torrentsearch.util.TorrentDateParser
 import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
@@ -19,9 +18,10 @@ import org.jsoup.nodes.Element
 
 class TheRarBg(private val networkClient: NetworkClient) :
     SearchProvider,
-    TorrentDetailsProvider,
     LatestTorrentsProvider,
-    TopTorrentsProvider {
+    TopTorrentsProvider,
+    MagnetUriProvider,
+    TorrentDetailsProvider {
     override val id = "therarbag"
     override val name = "TheRarBg"
     override val url = "https://therarbg.com"
@@ -41,7 +41,7 @@ class TheRarBg(private val networkClient: NetworkClient) :
     )
     override val enabledByDefault = false
 
-    private val resultsPageParser = TheRarBgResultsPageParser(id, name, networkClient)
+    private val resultsPageParser = TheRarBgResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -96,6 +96,12 @@ class TheRarBg(private val networkClient: NetworkClient) :
         return resultsPageParser.parse(html = responseHtml, pageUrl = requestUrl)
     }
 
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        return TheRarBgDetailsPageParser.extractMagnetUri(detailsPageHtml)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
+    }
+
     /** Returns the compatible category string. */
     private fun categoryName(raw: Category): String = when (raw) {
         Category.All -> ""
@@ -114,30 +120,22 @@ class TheRarBg(private val networkClient: NetworkClient) :
 private class TheRarBgResultsPageParser(
     private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
                 .select(LIST_ITEM)
-                .map { async { parseListItem(it) } }
-                .awaitAll()
-                .filterNotNull()
+                .mapNotNull(::parseListItem)
         }
 
-    suspend fun parseListItem(listItem: Element): Torrent? {
+    fun parseListItem(listItem: Element): Torrent? {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)
             ?.attr("abs:href")
             ?: return null
-        val detailsPageHtml = networkClient.getText(detailsPageUrl)
-        val torrentDetails = TheRarBgDetailsPageParser.parse(detailsPageHtml) ?: return null
-
         val torrentId = TorrentUtils.createTorrentId(
             providerId = providerId,
             sourceId = detailsPageUrl,
         )
-//        val infoHash = TorrentUtils.getInfoHashFromMagnetUri(torrentDetails.magnetUri)
-
         val name = listItem.selectFirst(NAME)?.ownText() ?: return null
         val size = listItem.selectFirst(SIZE)?.attr("data-order")?.let(FileSizeUtils::formatBytes)
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
@@ -157,8 +155,7 @@ private class TheRarBgResultsPageParser(
             providerName = providerName,
             uploadDate = uploadDate,
             category = category,
-            magnetUri = torrentDetails.magnetUri,
-            fileDownloadLink = torrentDetails.fileDownloadLink,
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
             descriptionPageUrl = detailsPageUrl,
         )
     }
@@ -230,6 +227,11 @@ private object TheRarBgDetailsPageParser {
                 val fixedTime = if (time.contains(':')) time else "$time:00"
                 "$month $day $year $fixedTime $amPm"
             }
+
+    suspend fun extractMagnetUri(detailsPageHtml: String): String? =
+        withContext(Dispatchers.Default) {
+            Jsoup.parse(detailsPageHtml).selectFirst(MAGNET_URI)?.attr("href")
+        }
 }
 
 /** Returns the [Category] that matches the string extracted from page. */

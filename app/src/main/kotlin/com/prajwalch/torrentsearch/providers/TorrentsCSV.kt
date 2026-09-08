@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.extension.asObject
 import com.prajwalch.torrentsearch.extension.getArray
@@ -63,21 +64,20 @@ class TorrentsCSV(private val networkClient: NetworkClient) : SearchProvider {
      * */
     private fun parseTorrentObject(torrentObject: JsonObject): Torrent? {
         val name = torrentObject.getString("name") ?: return null
-//        val infoHash = torrentObject.getString("infohash") ?: return null
+        val infoHash = torrentObject.getString("infohash") ?: return null
         val torrentRemoteId = torrentObject.getLong("id") ?: return null
         val torrentId = TorrentUtils.createTorrentId(
             providerId = id,
             sourceId = torrentRemoteId.toString(),
         )
-
-        val sizeBytes = torrentObject.getLong("size_bytes") ?: return null
-        val size = FileSizeUtils.formatBytes(bytes = sizeBytes.toFloat())
-
-        val seeders = torrentObject.getUInt("seeders") ?: return null
-        val peers = torrentObject.getUInt("leechers") ?: return null
+        val magnetUri = TorrentUtils.createMagnetUri(infoHash)
+        val size = torrentObject.getLong("size_bytes")
+            ?.toFloat()
+            ?.let(FileSizeUtils::formatBytes)
+        val seeders = torrentObject.getUInt("seeders")
+        val peers = torrentObject.getUInt("leechers")
         val uploadDate = torrentObject.getLong("created_unix")
             ?.let(TorrentDateParser::epochSecondToInstant)
-            ?: return null
 
         return Torrent(
             id = torrentId,
@@ -88,6 +88,7 @@ class TorrentsCSV(private val networkClient: NetworkClient) : SearchProvider {
             providerName = this.name,
             uploadDate = uploadDate,
             category = Category.Other,
+            magnetUriState = MagnetUriState.Available(magnetUri),
         )
     }
 }

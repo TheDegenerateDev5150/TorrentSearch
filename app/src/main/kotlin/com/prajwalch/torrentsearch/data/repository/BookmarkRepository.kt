@@ -5,6 +5,7 @@ import android.util.Log
 import com.prajwalch.torrentsearch.data.local.dao.BookmarkedTorrentDao
 import com.prajwalch.torrentsearch.data.local.entities.BookmarkedTorrentEntity
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.util.TorrentUtils
 
@@ -32,8 +33,39 @@ class BookmarkRepository(private val dao: BookmarkedTorrentDao) {
         return dao.getBookmarksCount()
     }
 
-    suspend fun bookmarkTorrent(torrent: Torrent) {
-        dao.insertBookmark(torrent.toEntity())
+//    suspend fun bookmarkTorrent(torrent: Torrent) {
+//        dao.insertBookmark(torrent.toEntity())
+//    }
+
+    suspend fun createAndAddBookmark(
+        torrentId: String,
+        name: String,
+        magnetUri: String,
+        size: String?,
+        seeders: UInt?,
+        peers: UInt?,
+        providerName: String,
+        uploadDate: Instant?,
+        category: Category?,
+        descriptionPageUrl: String?,
+        fileDownloadLink: String?,
+    ) {
+        val bookmarkedTorrentEntity = BookmarkedTorrentEntity(
+            id = torrentId,
+            name = name,
+            infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            size = size,
+            seeders = seeders?.toInt(),
+            peers = peers?.toInt(),
+            providerName = providerName,
+            uploadDate = uploadDate?.toEpochMilli(),
+            category = category?.name,
+            descriptionPageUrl = descriptionPageUrl,
+            magnetUri = magnetUri,
+            fileDownloadLink = fileDownloadLink,
+        )
+
+        dao.insertBookmark(bookmarkedTorrentEntity)
     }
 
     suspend fun deleteBookmarkById(id: String) {
@@ -75,7 +107,7 @@ class BookmarkRepository(private val dao: BookmarkedTorrentDao) {
     }
 
     private companion object {
-        private const val TAG = "BookmarksRepository"
+        private const val TAG = "BookmarkRepository"
     }
 }
 
@@ -90,23 +122,9 @@ private fun BookmarkedTorrentEntity.toDomain() =
         uploadDate = this.uploadDate?.let(Instant::ofEpochMilli),
         category = this.category?.let(Category::valueOf),
         descriptionPageUrl = this.descriptionPageUrl,
-        magnetUri = this.magnetUri,
-        fileDownloadLink = this.fileDownloadLink,
-    )
-
-private fun Torrent.toEntity() =
-    BookmarkedTorrentEntity(
-        id = this.id,
-        infoHash = this.magnetUri?.let { TorrentUtils.getInfoHashFromMagnetUri(it) } ?: "",
-        name = this.name,
-        size = this.size,
-        seeders = this.seeders?.toInt(),
-        peers = this.peers?.toInt(),
-        providerName = this.providerName,
-        uploadDate = this.uploadDate?.toEpochMilli(),
-        category = this.category?.name,
-        descriptionPageUrl = this.descriptionPageUrl,
-        magnetUri = this.magnetUri,
+        magnetUriState = MagnetUriState.Available(
+            this.magnetUri ?: TorrentUtils.createMagnetUri(this.infoHash)
+        ),
         fileDownloadLink = this.fileDownloadLink,
     )
 

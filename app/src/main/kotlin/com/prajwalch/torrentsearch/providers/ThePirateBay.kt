@@ -2,6 +2,7 @@ package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.extension.asArray
@@ -146,32 +147,27 @@ private class TBPResultsJsonParser(
      */
     private fun parseTorrentObject(torrentObject: JsonObject): Torrent? {
         val name = torrentObject.getString("name") ?: return null
-
         // Yeah, this is how it returns empty results.
-        if (name == "No results returned") {
-            return null
-        }
+        if (name == "No results returned") return null
 
+        val infoHash = torrentObject.getString("info_hash")?.lowercase()?.trim() ?: return null
         val torrentRemoteId = torrentObject.getString("id") ?: return null
+
         val torrentId = TorrentUtils.createTorrentId(
             providerId = providerId,
             sourceId = torrentRemoteId,
         )
-        val descriptionPageUrl = "$providerUrl/description.php?id=$torrentRemoteId"
-
-//        val infoHash = torrentObject.getString("info_hash")?.lowercase()?.trim() ?: return null
-        val sizeBytes = torrentObject.getString("size") ?: return null
-        val size = FileSizeUtils.formatBytes(bytes = sizeBytes)
-        val seeders = torrentObject.getString("seeders")?.toUIntOrNull() ?: return null
-        val peers = torrentObject.getString("leechers")?.toUIntOrNull() ?: return null
-        val uploadDate = torrentObject
-            .getString("added")
+        val magnetUri = TorrentUtils.createMagnetUri(infoHash)
+        val detailsPageUrl = "$providerUrl/description.php?id=$torrentRemoteId"
+        val size = torrentObject.getString("size")?.let(FileSizeUtils::formatBytes)
+        val seeders = torrentObject.getString("seeders")?.toUIntOrNull()
+        val peers = torrentObject.getString("leechers")?.toUIntOrNull()
+        val uploadDate = torrentObject.getString("added")
             ?.toLongOrNull()
             ?.let(TorrentDateParser::epochSecondToInstant)
-            ?: return null
-
-        val categoryId = torrentObject.getString("category") ?: return null
-        val category = categoryFromId(categoryId.toInt())
+        val category = torrentObject.getString("category")
+            ?.toIntOrNull()
+            ?.let(::categoryFromId)
 
         return Torrent(
             id = torrentId,
@@ -182,7 +178,8 @@ private class TBPResultsJsonParser(
             providerName = providerName,
             uploadDate = uploadDate,
             category = category,
-            descriptionPageUrl = descriptionPageUrl,
+            magnetUriState = MagnetUriState.Available(magnetUri),
+            descriptionPageUrl = detailsPageUrl,
         )
     }
 }

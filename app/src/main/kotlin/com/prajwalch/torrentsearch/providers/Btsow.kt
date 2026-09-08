@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.extension.asObject
@@ -83,12 +84,14 @@ private class BtsowResultsJsonParser(
                     sourceId = infoHash,
                 )
                 val size = it.getLong("size")?.toFloat()?.let(FileSizeUtils::formatBytes)
+                val magnetUri = TorrentUtils.createMagnetUri(infoHash)
 
                 Torrent(
                     id = torrentId,
                     name = torrentName,
                     size = size,
                     providerName = providerName,
+                    magnetUriState = MagnetUriState.Available(magnetUri),
                     descriptionPageUrl = "$providerUrl/magnet/detail/$infoHash",
                 )
             }

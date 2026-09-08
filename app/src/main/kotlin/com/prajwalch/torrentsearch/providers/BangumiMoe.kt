@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.extension.asObject
@@ -18,7 +19,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
-class BangumiMoe(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
+class BangumiMoe(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
     TorrentDetailsProvider {
     override val id = "bangumimoe"
     override val name = "BangumiMoe"
@@ -113,7 +116,6 @@ private class BangumiMoeResultsJsonParser(
 
         return Torrent(
             id = torrentId,
-            magnetUri = magnetUri,
             name = torrentName,
             size = size,
             seeders = seeders,
@@ -121,6 +123,7 @@ private class BangumiMoeResultsJsonParser(
             uploadDate = uploadDate,
             providerName = providerName,
             category = Category.Anime,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = detailsPageUrl,
         )
     }

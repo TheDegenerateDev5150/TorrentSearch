@@ -12,6 +12,7 @@ import com.prajwalch.torrentsearch.domain.model.SortOptions
 import com.prajwalch.torrentsearch.domain.model.SortOrder
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.filter.TorrentFilters
+import com.prajwalch.torrentsearch.util.TorrentUtils
 import com.prajwalch.torrentsearch.util.createSortComparator
 
 import kotlinx.coroutines.flow.Flow
@@ -164,18 +165,14 @@ class BookmarksViewModel(
         }
     }
 
-    fun downloadTorrentFile(url: String, fileName: String) {
+    fun downloadTorrentFile(downloadUrl: String?, magnetUri: String, fileName: String) {
         viewModelScope.launch {
-            torrentFileDownloader.download(url = url, fileName = fileName)
-        }
-    }
-
-    fun downloadTorrentFileUsingInfoHash(infoHash: String, fileName: String) {
-        viewModelScope.launch {
-            torrentFileDownloader.tryDownloadUsingInfoHash(
-                infoHash = infoHash,
-                fileName = fileName,
-            )
+            if (downloadUrl != null) {
+                torrentFileDownloader.download(downloadUrl, fileName)
+            } else {
+                val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
+                torrentFileDownloader.tryDownloadUsingInfoHash(infoHash, fileName)
+            }
         }
     }
 

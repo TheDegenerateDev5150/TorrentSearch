@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -8,15 +9,16 @@ import com.prajwalch.torrentsearch.util.TorrentDateParser
 import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class Torrentz(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
+class Torrentz(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
     TopTorrentsProvider,
+    MagnetUriProvider,
     TorrentDetailsProvider {
     override val id = "torrentz"
     override val name = "Torrentz"
@@ -46,7 +48,7 @@ class Torrentz(private val networkClient: NetworkClient) : SearchProvider, Lates
         Category.Books to 9,
         Category.Porn to 10,
     )
-    private val resultsPageParser = TorrentzResultsPageParser(id, name, networkClient)
+    private val resultsPageParser = TorrentzResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = buildString {
@@ -97,6 +99,12 @@ class Torrentz(private val networkClient: NetworkClient) : SearchProvider, Lates
         return resultsPageParser.parse(html = responseHtml, pageUrl = requestUrl)
     }
 
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        return TorrentzDetailsPageParser.extractMagnetUri(detailsPageHtml)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
+    }
+
     override suspend fun getDetails(detailsPageUrl: String): TorrentDetails? {
         val responseHtml = networkClient.getText(detailsPageUrl)
         return TorrentzDetailsPageParser.parse(html = responseHtml, pageUrl = detailsPageUrl)
@@ -106,10 +114,15 @@ class Torrentz(private val networkClient: NetworkClient) : SearchProvider, Lates
 private class TorrentzResultsPageParser(
     private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     private companion object {
         private const val LIST_ITEM = "div.results > dl"
+        private const val TORRENT_NAME = "dt > a"
+        private const val SIZE = "dd > span.s"
+        private const val SEEDERS = "dd > span.u"
+        private const val PEERS = "dd > span.d"
+        private const val UPLOAD_DATE = "dd > span.a > span"
+        private const val CATEGORY = "dt"
         private const val DETAILS_PAGE_URL = "dt > a"
     }
 
@@ -117,18 +130,12 @@ private class TorrentzResultsPageParser(
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
                 .select(LIST_ITEM)
-                .map { async { parseListItem(it) } }
-                .awaitAll()
-                .filterNotNull()
+                .mapNotNull(::parseListItem)
         }
 
-    private suspend fun parseListItem(listItem: Element): Torrent? {
+    private fun parseListItem(listItem: Element): Torrent? {
         val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
-        val detailsPageHtml = networkClient.getText(detailsPageUrl)
-        val torrentDetails = TorrentzDetailsPageParser.parse(
-            html = detailsPageHtml,
-            pageUrl = detailsPageUrl
-        ) ?: return null
+        val name = listItem.selectFirst(TORRENT_NAME)?.ownText() ?: return null
 
         val torrentRemoteId = detailsPageUrl.takeLastWhile { it != '/' }
         val torrentId = TorrentUtils.createTorrentId(
@@ -136,19 +143,54 @@ private class TorrentzResultsPageParser(
             sourceId = torrentRemoteId,
         )
 
+        val size = listItem.selectFirst(SIZE)?.ownText()
+        val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
+        val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
+        val uploadDate = listItem.selectFirst(UPLOAD_DATE)
+            ?.attr("title")
+            ?.let { rawDate ->
+                runCatching {
+                    TorrentDateParser.parseIso(rawDate)
+                }.recoverCatching {
+                    rawDate
+                        .dropLastWhile { it != '(' }
+                        .dropLast(2)
+                        .dropLastWhile { !it.isWhitespace() }
+                        .trim()
+                        .let {
+                            TorrentDateParser.parse(date = it, format = "E MMM dd yyyy HH:mm:ss")
+                        }
+                }.getOrNull()
+            }
+        val category = listItem.selectFirst(CATEGORY)
+            ?.ownText()
+            ?.trim()
+            ?.removePrefix("» ")
+            ?.let(::categoryFromRaw)
+
         return Torrent(
             id = torrentId,
-            name = torrentDetails.name,
-            size = torrentDetails.size,
-            seeders = torrentDetails.seeders,
-            peers = torrentDetails.peers,
-            uploadDate = torrentDetails.uploadDate,
-            category = torrentDetails.category,
+            name = name,
+            size = size,
+            seeders = seeders,
+            peers = peers,
+            uploadDate = uploadDate,
+            category = category,
             providerName = providerName,
-            magnetUri = torrentDetails.magnetUri,
-            fileDownloadLink = torrentDetails.fileDownloadLink,
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
             descriptionPageUrl = detailsPageUrl,
         )
+    }
+
+    private fun categoryFromRaw(raw: String): Category = when {
+        raw.startsWith("Anime") -> Category.Anime
+        raw.startsWith("Other") -> Category.Other
+        raw.startsWith("Softwares") -> Category.Apps
+        raw.startsWith("Music") -> Category.Music
+        raw.startsWith("Games") -> Category.Games
+        raw == "Movies" -> Category.Movies
+        raw == "TV" -> Category.Series
+        else -> Category.Other
     }
 }
 
@@ -199,17 +241,22 @@ private object TorrentzDetailsPageParser {
                 fileDownloadLink = fileDownloadLink,
             )
         }
-}
 
-private fun categoryFromId(id: Int): Category = when (id) {
-    1 -> Category.Other
-    2 -> Category.Movies
-    3 -> Category.Series
-    4 -> Category.Anime
-    5 -> Category.Apps
-    6 -> Category.Games
-    7 -> Category.Music
-    9 -> Category.Books
-    10 -> Category.Porn
-    else -> Category.Other
+    private fun categoryFromId(id: Int): Category = when (id) {
+        1 -> Category.Other
+        2 -> Category.Movies
+        3 -> Category.Series
+        4 -> Category.Anime
+        5 -> Category.Apps
+        6 -> Category.Games
+        7 -> Category.Music
+        9 -> Category.Books
+        10 -> Category.Porn
+        else -> Category.Other
+    }
+
+    suspend fun extractMagnetUri(detailsPageHtml: String): String? =
+        withContext(Dispatchers.Default) {
+            Jsoup.parse(detailsPageHtml).selectFirst(MAGNET_URI)?.attr("href")
+        }
 }

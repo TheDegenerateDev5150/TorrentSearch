@@ -2,6 +2,7 @@ package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -20,8 +21,10 @@ import org.jsoup.nodes.Element
  * Extracts torrent results from the HTML search page.
  * This provider uses InfoHash, not Magnet URIs.
  */
-class LimeTorrents(private val networkClient: NetworkClient) : SearchProvider,
-    TorrentDetailsProvider, LatestTorrentsProvider,
+class LimeTorrents(private val networkClient: NetworkClient) :
+    SearchProvider,
+    TorrentDetailsProvider,
+    LatestTorrentsProvider,
     TopTorrentsProvider {
     override val id = "limetorrents"
     override val name = "LimeTorrents"
@@ -134,6 +137,7 @@ private class LimeTorrentsResultsPageParser(
             .takeWhile { it != '.' }
             .lowercase()
         val torrentId = TorrentUtils.createTorrentId(providerId = providerId, sourceId = infoHash)
+        val magnetUri = TorrentUtils.createMagnetUri(infoHash)
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
@@ -155,6 +159,7 @@ private class LimeTorrentsResultsPageParser(
             uploadDate = uploadDate,
             category = category,
             descriptionPageUrl = detailsPageUrl,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
         )
     }

@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -8,8 +9,6 @@ import com.prajwalch.torrentsearch.util.FileSizeUtils
 import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
@@ -18,7 +17,10 @@ import org.jsoup.nodes.TextNode
 
 import kotlin.io.encoding.Base64
 
-class BlueRoms(private val networkClient: NetworkClient) : SearchProvider, TorrentDetailsProvider {
+class BlueRoms(private val networkClient: NetworkClient) :
+    SearchProvider,
+    MagnetUriProvider,
+    TorrentDetailsProvider {
     override val id = "blueroms"
     override val name = "BlueRoms"
     override val url = "https://www.blueroms.ws"
@@ -26,7 +28,7 @@ class BlueRoms(private val networkClient: NetworkClient) : SearchProvider, Torre
     override val safetyStatus = SearchProviderSafetyStatus.Safe
     override val enabledByDefault = false
 
-    private val resultsPageParser = BlueRomsResultsPageParser(id, name, networkClient)
+    private val resultsPageParser = BlueRomsResultsPageParser(id, name)
     private val detailsPageParser = BlueRomsDetailsPageParser(networkClient)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -34,6 +36,11 @@ class BlueRoms(private val networkClient: NetworkClient) : SearchProvider, Torre
         val responseHtml = networkClient.getText(requestUrl)
 
         return resultsPageParser.parse(html = responseHtml, pageUrl = requestUrl)
+    }
+
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        return getMagnetUri(sourceUrl, networkClient)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
     }
 
     override suspend fun getDetails(detailsPageUrl: String): TorrentDetails? {
@@ -45,22 +52,18 @@ class BlueRoms(private val networkClient: NetworkClient) : SearchProvider, Torre
 private class BlueRomsResultsPageParser(
     private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default) {
             Jsoup.parse(html, pageUrl)
                 .select(LIST_ITEM)
-                .map { async { parseListItem(it) } }
-                .awaitAll()
-                .filterNotNull()
+                .mapNotNull(::parseListItem)
         }
 
-    suspend fun parseListItem(listItem: Element): Torrent? {
+    fun parseListItem(listItem: Element): Torrent? {
         val downloadPageLink = listItem.selectFirst(DOWNLOAD_PAGE_URL)
             ?.attr("abs:href")
             ?: return null
-        val magnetUri = getMagnetUri(downloadPageLink, networkClient) ?: return null
 
         val torrentRemoteId = downloadPageLink.takeLastWhile { it != '/' }
         val torrentId = TorrentUtils.createTorrentId(
@@ -88,7 +91,7 @@ private class BlueRomsResultsPageParser(
             size = size,
             category = Category.Games,
             providerName = providerName,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.FetchRequired(downloadPageLink),
             descriptionPageUrl = detailsPageUrl,
         )
     }
@@ -146,13 +149,15 @@ private class BlueRomsDetailsPageParser(private val networkClient: NetworkClient
 }
 
 private suspend fun getMagnetUri(downloadPageUrl: String, networkClient: NetworkClient): String? {
-    val downloadPageHtml = withContext(Dispatchers.IO) { networkClient.getText(downloadPageUrl) }
+    val downloadPageHtml = withContext(Dispatchers.IO) {
+        networkClient.getText(downloadPageUrl)
+    }
     val encodedMagnetUri = withContext(Dispatchers.Default) {
         Jsoup.parse(downloadPageHtml)
             .selectFirst("button#magnet-button")
             ?.attr("data-link")
             ?.takeIf { it.isNotBlank() }
-    } ?: return null
+    }
 
-    return String(Base64.decode(encodedMagnetUri), Charsets.UTF_8)
+    return encodedMagnetUri?.let { String(Base64.decode(it), Charsets.UTF_8) }
 }

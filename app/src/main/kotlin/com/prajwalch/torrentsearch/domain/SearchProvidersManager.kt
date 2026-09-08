@@ -10,6 +10,7 @@ import com.prajwalch.torrentsearch.domain.model.SearchProviderInfo
 import com.prajwalch.torrentsearch.domain.model.TorznabConfig
 import com.prajwalch.torrentsearch.network.NetworkClient
 import com.prajwalch.torrentsearch.providers.LatestTorrentsProvider
+import com.prajwalch.torrentsearch.providers.MagnetUriProvider
 import com.prajwalch.torrentsearch.providers.SearchProvider
 import com.prajwalch.torrentsearch.providers.SearchProviderId
 import com.prajwalch.torrentsearch.providers.SearchProviderSafetyStatus
@@ -80,6 +81,12 @@ class SearchProvidersManager(
     ): List<TorznabSearchProvider> =
         torznabConfigRepository.getCurrentConfigsByIds(enabledProviderIds)
             .map { config -> TorznabSearchProvider(config, networkClient) }
+
+    fun findMagnetUriProviderByName(name: String): MagnetUriProvider? {
+        return builtinProviders
+            .filterIsInstance<MagnetUriProvider>()
+            .find { it.name == name }
+    }
 
     /**
      * Finds a torrent details provider associated with the given name.

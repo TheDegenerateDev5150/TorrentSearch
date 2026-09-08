@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -14,7 +15,8 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class TorrentDatabase(private val networkClient: NetworkClient) : SearchProvider,
+class TorrentDatabase(private val networkClient: NetworkClient) :
+    SearchProvider,
     TorrentDetailsProvider,
     LatestTorrentsProvider,
     TopTorrentsProvider {
@@ -105,7 +107,7 @@ private class TdResultsPageParser(
             Jsoup
                 .parse(html, pageUrl)
                 .select(RESULT_LIST_ITEM)
-                .mapNotNull { parseListItem(it) }
+                .mapNotNull(::parseListItem)
         }
 
     private fun parseListItem(listItem: Element): Torrent? {
@@ -143,8 +145,8 @@ private class TdResultsPageParser(
             uploadDate = uploadDate,
             category = category,
             providerName = providerName,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = descriptionPageUrl,
-            magnetUri = magnetUri,
         )
     }
 

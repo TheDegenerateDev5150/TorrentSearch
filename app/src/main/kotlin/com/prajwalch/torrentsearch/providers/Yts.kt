@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.extension.asObject
@@ -19,8 +20,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-class Yts(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
-    TopTorrentsProvider, TorrentDetailsProvider {
+class Yts(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider,
+    TorrentDetailsProvider {
     override val id = "ytsmx"
     override val name = "Yts"
     override val url = "https://yts.bz"
@@ -145,8 +149,8 @@ private class YtsResultsJsonParser(
         detailsPageUrl: String?,
     ): Torrent? {
         val infoHash = torrentObject.getString("hash")?.lowercase() ?: return null
-
         val torrentId = TorrentUtils.createTorrentId(providerId, infoHash)
+        val magnetUri = TorrentUtils.createMagnetUri(infoHash)
         val quality = torrentObject.getString("quality") ?: "-"
         val type = torrentObject.getString("type") ?: "-"
         val codec = torrentObject.getString("video_codec") ?: "-"
@@ -169,6 +173,7 @@ private class YtsResultsJsonParser(
             providerName = providerName,
             uploadDate = uploadDate,
             category = Category.Movies,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = detailsPageUrl,
         )
     }

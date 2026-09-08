@@ -85,6 +85,10 @@ interface TopTorrentsProvider : SearchProvider {
     suspend fun getTopTorrents(category: Category = Category.All): List<Torrent>
 }
 
+interface MagnetUriProvider : SearchProvider {
+    suspend fun getMagnetUri(sourceUrl: String): String
+}
+
 /** How safe is the search provider?. */
 sealed class SearchProviderSafetyStatus {
     /** Search provider is safe to use. */

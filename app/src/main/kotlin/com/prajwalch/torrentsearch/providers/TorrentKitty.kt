@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -13,7 +14,8 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class TorrentKitty(private val networkClient: NetworkClient) : SearchProvider,
+class TorrentKitty(private val networkClient: NetworkClient) :
+    SearchProvider,
     TorrentDetailsProvider {
     override val id = "torrentkitty"
     override val name = "TorrentKitty"
@@ -68,9 +70,10 @@ private class TorrentKittyResultsPageParser(
             name = torrentName,
             size = size,
             uploadDate = uploadDate,
-            fileDownloadLink = fileDownloadLink,
-            descriptionPageUrl = detailsPageUrl,
             providerName = providerName,
+            descriptionPageUrl = detailsPageUrl,
+            magnetUriState = MagnetUriState.Available(magnetUri),
+            fileDownloadLink = fileDownloadLink,
         )
     }
 

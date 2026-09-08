@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -35,21 +36,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.constant.TorrentSearchConstants
-import com.prajwalch.torrentsearch.domain.model.MagnetUri
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.ui.TorrentFileDownloadEffect
 import com.prajwalch.torrentsearch.ui.bookmarks.component.BookmarkList
 import com.prajwalch.torrentsearch.ui.bookmarks.component.BookmarksScreenTopBar
 import com.prajwalch.torrentsearch.ui.bookmarks.component.DeleteAllConfirmationDialog
+import com.prajwalch.torrentsearch.ui.component.ActionListItem
 import com.prajwalch.torrentsearch.ui.component.AnimatedScrollToTopFAB
 import com.prajwalch.torrentsearch.ui.component.ContentState
 import com.prajwalch.torrentsearch.ui.component.FilterSearchBar
@@ -71,8 +74,8 @@ import org.koin.androidx.compose.koinViewModel
 fun BookmarksScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onOpenMagnetLink: (MagnetUri) -> Unit,
-    onShareMagnetLink: (MagnetUri) -> Unit,
+    onOpenMagnetLink: (String) -> Unit,
+    onShareMagnetLink: (String) -> Unit,
     onOpenDescriptionPage: (url: String, providerName: String) -> Unit,
     onShareDescriptionPageUrl: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -107,7 +110,6 @@ fun BookmarksScreen(
 
     var selectedBookmark by retain { mutableStateOf<Torrent?>(null) }
     selectedBookmark?.let { bookmark ->
-        val bookmarkId = bookmark.id
         val clipboard = LocalClipboard.current
         val magnetLinkCopiedMessage = stringResource(
             R.string.torrent_list_magnet_link_copied_message
@@ -118,30 +120,38 @@ fun BookmarksScreen(
 
         TorrentActionsBottomSheet(
             onDismiss = { selectedBookmark = null },
-            title = bookmark.name,
-            showNSFWBadge = bookmark.isNSFW,
-            onDeleteBookmark = { viewModel.deleteBookmarkById(bookmarkId) },
-            onOpenMagnetLink = { onOpenMagnetLink(bookmark.magnetUri()) },
-            onDownloadTorrentFile = {
-                if (bookmark.fileDownloadLink != null) {
-                    viewModel.downloadTorrentFile(
-                        url = bookmark.fileDownloadLink,
-                        fileName = bookmark.name,
-                    )
-                } else {
-                    viewModel.downloadTorrentFileUsingInfoHash(
-                        infoHash = "",
-                        fileName = bookmark.name,
-                    )
-                }
+            torrent = bookmark,
+            customAction = {
+                ActionListItem(
+                    modifier = Modifier.clip(MaterialTheme.shapes.large),
+                    onClick = {
+                        viewModel.deleteBookmarkById(bookmark.id)
+                        selectedBookmark = null
+                    },
+                    icon = painterResource(R.drawable.ic_delete),
+                    label = stringResource(R.string.torrent_list_action_delete_bookmark),
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        leadingIconColor = MaterialTheme.colorScheme.onErrorContainer,
+                        headlineColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ),
+                )
             },
-            onCopyMagnetLink = {
+            onOpenMagnetLink = onOpenMagnetLink,
+            onDownloadTorrentFile = { downloadUrl, magnetUri ->
+                viewModel.downloadTorrentFile(
+                    downloadUrl = downloadUrl,
+                    magnetUri = magnetUri,
+                    fileName = bookmark.name,
+                )
+            },
+            onCopyMagnetLink = { magnetUri ->
                 coroutineScope.launch {
-                    clipboard.copyText(text = bookmark.magnetUri())
-                    snackbarHostState.showSnackbar(message = magnetLinkCopiedMessage)
+                    clipboard.copyText(magnetUri)
+                    snackbarHostState.showSnackbar(magnetLinkCopiedMessage)
                 }
             },
-            onShareMagnetLink = { onShareMagnetLink(bookmark.magnetUri()) },
+            onShareMagnetLink = onShareMagnetLink,
             onOpenDescriptionPage = {
                 bookmark.descriptionPageUrl?.let {
                     onOpenDescriptionPage(it, bookmark.providerName)
@@ -160,7 +170,6 @@ fun BookmarksScreen(
                     onShareDescriptionPageUrl(it)
                 }
             },
-            enableDescriptionPageActions = bookmark.descriptionPageUrl != null,
         )
     }
 

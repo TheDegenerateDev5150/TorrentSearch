@@ -61,7 +61,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.Category
-import com.prajwalch.torrentsearch.domain.model.MagnetUri
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.ui.TorrentFileDownloadEffect
 import com.prajwalch.torrentsearch.ui.component.NSFWBadge
@@ -87,7 +86,7 @@ import java.time.Instant
 @Composable
 fun TorrentDetailsScreen(
     onNavigateBack: () -> Unit,
-    onOpenMagnetLink: (MagnetUri) -> Unit,
+    onOpenMagnetLink: (String) -> Unit,
     onShareDetailsPageLink: (url: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TorrentDetailsViewModel = koinViewModel(),

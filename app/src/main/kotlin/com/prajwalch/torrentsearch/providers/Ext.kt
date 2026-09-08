@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.extension.asObject
@@ -22,8 +23,12 @@ import org.jsoup.nodes.Element
 
 import java.security.MessageDigest
 
-class Ext(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
-    TopTorrentsProvider, TorrentDetailsProvider {
+class Ext(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider,
+    MagnetUriProvider,
+    TorrentDetailsProvider {
     override val id = "extdotto"
     override val name = "Ext"
     override val url = "https://ext.to"
@@ -114,6 +119,12 @@ class Ext(private val networkClient: NetworkClient) : SearchProvider, LatestTorr
 
         return resultsPageParser.parse(html = responseHtml, pageUrl = requestUrl)
     }
+
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        return detailsPageParser.getMagnetUri(detailsPageHtml)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
+    }
 }
 
 private class ExtResultsPageParser(
@@ -142,9 +153,11 @@ private class ExtResultsPageParser(
 
     private fun parseListItem(listItem: Element): Torrent? {
         val torrentName = listItem.selectFirst(TORRENT_NAME)?.text() ?: return null
+        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
+
         val torrentRemoteId = listItem.selectFirst(TORRENT_ID)?.attr("data-id") ?: return null
         val torrentId = TorrentUtils.createTorrentId(providerId, torrentRemoteId)
-//        val magnetUri = getMagnetUri(torrentRemoteId, sessionId, pageToken) ?: return null
+
         val size = listItem.selectFirst(SIZE)?.ownText()
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
         val peers = listItem.selectFirst(PEERS)?.ownText()?.toUIntOrNull()
@@ -155,7 +168,6 @@ private class ExtResultsPageParser(
             ?.attr("href")
             ?.removeSurrounding("/", "/")
             ?.let(::getCategoryFromRaw)
-        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href")
 
         return Torrent(
             id = torrentId,
@@ -166,6 +178,7 @@ private class ExtResultsPageParser(
             uploadDate = uploadDate,
             category = category,
             providerName = providerName,
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
             descriptionPageUrl = detailsPageUrl,
         )
     }
@@ -200,7 +213,6 @@ private class ExtResultsPageParser(
      */
 
     private companion object {
-        //        private const val SESSION_ID = """meta[name="csrf-token"]"""
         private const val LIST_ITEM = "table.search-table > tbody > tr"
         private const val TORRENT_NAME = "td:nth-child(1) > div:nth-child(1) > a.torrent-title-link"
         private const val SIZE = "td:nth-child(2) > div > span:nth-child(2)"
@@ -244,7 +256,7 @@ private class ExtDetailsPageParser(private val networkClient: NetworkClient) {
             val torrentId = html.selectFirst(TORRENT_ID)?.attr("data-id") ?: return@withContext null
             val sessionId = html.selectFirst(SESSION_ID)?.attr("content") ?: return@withContext null
             val pageToken = extractPageToken(html) ?: return@withContext null
-            val magnetUri = getMagnetUri(
+            val magnetUri = fetchMagnetUri(
                 torrentId = torrentId,
                 sessionId = sessionId,
                 pageToken = pageToken,
@@ -303,7 +315,27 @@ private class ExtDetailsPageParser(private val networkClient: NetworkClient) {
             ?.takeLastWhile { it != '\'' }
     }
 
-    private suspend fun getMagnetUri(
+    suspend fun getMagnetUri(detailsPageHtml: String): String? =
+        withContext(Dispatchers.Default) {
+            val detailsPageDom = Jsoup.parse(detailsPageHtml)
+
+            val torrentId = detailsPageDom.selectFirst(TORRENT_ID)
+                ?.attr("data-id")
+                ?: return@withContext null
+            val sessionId = detailsPageDom.selectFirst(SESSION_ID)
+                ?.attr("content")
+                ?: return@withContext null
+            val pageToken = detailsPageDom.select("script")
+                .mapNotNull { it.data().trim().lines().firstOrNull() }
+                .find { it.startsWith("window.pageToken") }
+                ?.removeSuffix("';")
+                ?.takeLastWhile { it != '\'' }
+                ?: return@withContext null
+
+            fetchMagnetUri(torrentId, sessionId, pageToken)
+        }
+
+    private suspend fun fetchMagnetUri(
         torrentId: String,
         sessionId: String,
         pageToken: String,

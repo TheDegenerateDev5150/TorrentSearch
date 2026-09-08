@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -8,8 +9,6 @@ import com.prajwalch.torrentsearch.util.TorrentDateParser
 import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
@@ -17,8 +16,11 @@ import org.jsoup.nodes.Element
 
 import java.time.Instant
 
-class ThirteenThirtySevenX(private val networkClient: NetworkClient) : SearchProvider,
-    TopTorrentsProvider, TorrentDetailsProvider {
+class ThirteenThirtySevenX(private val networkClient: NetworkClient) :
+    SearchProvider,
+    TopTorrentsProvider,
+    MagnetUriProvider,
+    TorrentDetailsProvider {
     override val id = "1337x"
     override val name = "1337x"
     override val url = "https://1337x.to"
@@ -46,7 +48,7 @@ class ThirteenThirtySevenX(private val networkClient: NetworkClient) : SearchPro
         Category.Porn to "XXX",
         Category.Series to "TV",
     )
-    private val resultsPageParser = ThirteenThirtySevenXResultsPageParser(id, name, networkClient)
+    private val resultsPageParser = ThirteenThirtySevenXResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
         val requestUrl = if (category == Category.All) {
@@ -67,6 +69,12 @@ class ThirteenThirtySevenX(private val networkClient: NetworkClient) : SearchPro
         return resultsPageParser.parse(html = responseHtml, pageUrl = requestUrl)
     }
 
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        return ThirteenThirtySevenXDetailsPageParser.extractMagnetUri(detailsPageHtml)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
+    }
+
     override suspend fun getDetails(detailsPageUrl: String): TorrentDetails? {
         val response = networkClient.getText(detailsPageUrl)
         return ThirteenThirtySevenXDetailsPageParser.parse(
@@ -79,25 +87,18 @@ class ThirteenThirtySevenX(private val networkClient: NetworkClient) : SearchPro
 private class ThirteenThirtySevenXResultsPageParser(
     private val providerId: SearchProviderId,
     private val providerName: String,
-    private val networkClient: NetworkClient,
 ) {
     suspend fun parse(html: String, pageUrl: String): List<Torrent> =
         withContext(Dispatchers.Default.limitedParallelism(3)) {
             Jsoup.parse(html, pageUrl)
                 .select(LIST_ITEM)
-                .map { async { parseListItem(it) } }
-                .awaitAll()
-                .filterNotNull()
+                .mapNotNull(::parseListItem)
         }
 
-    private suspend fun parseListItem(listItem: Element): Torrent? {
-        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)?.attr("abs:href") ?: return null
-        val detailsPageHtml = networkClient.getText(detailsPageUrl)
-        val torrentDetails = ThirteenThirtySevenXDetailsPageParser.parse(
-            html = detailsPageHtml,
-            pageUrl = detailsPageUrl,
-        ) ?: return null
-
+    private fun parseListItem(listItem: Element): Torrent? {
+        val detailsPageUrl = listItem.selectFirst(DETAILS_PAGE_URL)
+            ?.attr("abs:href")
+            ?: return null
         val torrentId = TorrentUtils.createTorrentId(
             providerId = providerId,
             sourceId = detailsPageUrl,
@@ -122,8 +123,7 @@ private class ThirteenThirtySevenXResultsPageParser(
             providerName = providerName,
             category = category,
             descriptionPageUrl = detailsPageUrl,
-            magnetUri = torrentDetails.magnetUri,
-            fileDownloadLink = torrentDetails.fileDownloadLink
+            magnetUriState = MagnetUriState.FetchRequired(detailsPageUrl),
         )
     }
 
@@ -224,6 +224,11 @@ private object ThirteenThirtySevenXDetailsPageParser {
                 description = description,
                 posterUrl = posterUrl,
             )
+        }
+
+    suspend fun extractMagnetUri(detailsPageHtml: String): String? =
+        withContext(Dispatchers.Default) {
+            Jsoup.parse(detailsPageHtml).selectFirst(MAGNET_URI)?.attr("href")
         }
 }
 

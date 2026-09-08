@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -76,7 +77,8 @@ private class SukebeiResultsPageParser(
         val magnetUri = listItem.selectFirst(MAGNET_URI)?.attr("href") ?: return null
         val fileDownloadLink = listItem.selectFirst(FILE_DOWNLOAD_LINK)?.attr("abs:href")
         val size = listItem.selectFirst(SIZE)?.ownText()
-        val uploadDate = listItem.selectFirst(UPLOAD_DATE)?.attr("data-timestamp")
+        val uploadDate = listItem.selectFirst(UPLOAD_DATE)
+            ?.attr("data-timestamp")
             ?.toLongOrNull()
             ?.let(TorrentDateParser::epochSecondToInstant)
         val seeders = listItem.selectFirst(SEEDERS)?.ownText()?.toUIntOrNull()
@@ -98,8 +100,8 @@ private class SukebeiResultsPageParser(
             providerName = providerName,
             uploadDate = uploadDate,
             category = Category.Porn,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = detailsPageUrl,
-            magnetUri = magnetUri,
             fileDownloadLink = fileDownloadLink,
         )
     }

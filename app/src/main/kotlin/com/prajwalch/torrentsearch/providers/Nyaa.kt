@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -13,8 +14,11 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class Nyaa(private val networkClient: NetworkClient) : SearchProvider, TorrentDetailsProvider,
-    LatestTorrentsProvider, TopTorrentsProvider {
+class Nyaa(private val networkClient: NetworkClient) :
+    SearchProvider,
+    TorrentDetailsProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider {
     override val id = "nyaasi"
     override val name = "Nyaa"
     override val url = "https://nyaa.si"
@@ -130,7 +134,7 @@ private class NyaaResultsPageParser(
             providerName = providerName,
             uploadDate = uploadDate,
             category = category,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
             descriptionPageUrl = detailsPageUrl,
         )

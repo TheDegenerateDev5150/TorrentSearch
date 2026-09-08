@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.extension.asObject
 import com.prajwalch.torrentsearch.extension.getArray
@@ -24,7 +25,9 @@ import kotlinx.serialization.json.putJsonArray
  * Provider implementation using the official [Knaben API](https://knaben.org/api/v1).
  * Returns magnet-based torrents.
  */
-class Knaben(private val networkClient: NetworkClient) : SearchProvider, LatestTorrentsProvider,
+class Knaben(private val networkClient: NetworkClient) :
+    SearchProvider,
+    LatestTorrentsProvider,
     TopTorrentsProvider {
     override val id = "knaben"
     override val name = "Knaben"
@@ -166,7 +169,7 @@ private class KnabenResultsJsonParser(
             providerName = providerName,
             uploadDate = uploadDate,
             descriptionPageUrl = descriptionPageUrl,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             category = category,
         )
     }

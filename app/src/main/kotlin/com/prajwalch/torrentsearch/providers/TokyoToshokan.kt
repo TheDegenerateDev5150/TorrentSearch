@@ -2,6 +2,7 @@ package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.constant.TorrentSearchConstants
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -15,8 +16,10 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class TokyoToshokan(private val networkClient: NetworkClient) : SearchProvider,
-    TorrentDetailsProvider, LatestTorrentsProvider,
+class TokyoToshokan(private val networkClient: NetworkClient) :
+    SearchProvider,
+    TorrentDetailsProvider,
+    LatestTorrentsProvider,
     TopTorrentsProvider {
     override val id = "tokyotoshokan"
     override val name = "TokyoToshokan"
@@ -97,7 +100,6 @@ private class TokyoToshokanResultsPageParser(
     private fun parseListItem(tr1: Element, tr2: Element): Torrent? {
         val torrentName = tr1.selectFirst(NAME)?.ownText() ?: return null
         val magnetUri = tr1.selectFirst(MAGNET_URI)?.attr("href") ?: return null
-
         val torrentId = TorrentUtils.createTorrentId(
             providerId = providerId,
             sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
@@ -132,7 +134,7 @@ private class TokyoToshokanResultsPageParser(
             uploadDate = uploadDate,
             category = category,
             descriptionPageUrl = detailsPageUrl,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
         )
     }

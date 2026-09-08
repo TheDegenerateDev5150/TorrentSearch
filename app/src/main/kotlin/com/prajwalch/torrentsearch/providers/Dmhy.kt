@@ -1,6 +1,7 @@
 package com.prajwalch.torrentsearch.providers
 
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.network.NetworkClient
@@ -14,8 +15,11 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class Dmhy(private val networkClient: NetworkClient) : SearchProvider, TorrentDetailsProvider,
-    LatestTorrentsProvider, TopTorrentsProvider {
+class Dmhy(private val networkClient: NetworkClient) :
+    SearchProvider,
+    TorrentDetailsProvider,
+    LatestTorrentsProvider,
+    TopTorrentsProvider {
     override val id = "dmhy"
     override val name = "Dmhy"
     override val url = "https://share.dmhy.org"
@@ -116,7 +120,7 @@ private class DmhyResultsPageParser(
             uploadDate = uploadDate,
             category = category,
             providerName = providerName,
-            magnetUri = magnetUri,
+            magnetUriState = MagnetUriState.Available(magnetUri),
             descriptionPageUrl = detailsPageUrl,
         )
     }

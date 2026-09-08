@@ -21,7 +21,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.DarkTheme
-import com.prajwalch.torrentsearch.domain.model.MagnetUri
 import com.prajwalch.torrentsearch.ui.TorrentSearchApp
 import com.prajwalch.torrentsearch.ui.theme.TorrentSearchTheme
 
@@ -130,7 +129,7 @@ class MainActivity : ComponentActivity() {
      *
      * @return `true` if the client is found, `false` otherwise.
      */
-    private fun openMagnetLink(magnetUri: MagnetUri): Boolean {
+    private fun openMagnetLink(magnetUri: String): Boolean {
         Log.d(TAG, "openMagnetLink")
 
         return try {
@@ -144,7 +143,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Starts the application chooser to share magnet uri with. */
-    private fun shareMagnetLink(magnetUri: MagnetUri) {
+    private fun shareMagnetLink(magnetUri: String) {
         Log.d(TAG, "shareMagnetLink")
 
         try {

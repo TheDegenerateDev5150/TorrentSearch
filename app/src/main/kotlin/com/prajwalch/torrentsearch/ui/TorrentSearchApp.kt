@@ -16,7 +16,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 
 import com.prajwalch.torrentsearch.domain.model.Category
-import com.prajwalch.torrentsearch.domain.model.MagnetUri
 import com.prajwalch.torrentsearch.ui.bookmarks.BookmarksScreen
 import com.prajwalch.torrentsearch.ui.browse.BrowseScreen
 import com.prajwalch.torrentsearch.ui.component.TorrentClientNotFoundDialog
@@ -57,8 +56,8 @@ private object SearchHistory
 
 @Composable
 fun TorrentSearchApp(
-    onOpenMagnetLink: (MagnetUri) -> Boolean,
-    onShareMagnetLink: (MagnetUri) -> Unit,
+    onOpenMagnetLink: (String) -> Boolean,
+    onShareMagnetLink: (String) -> Unit,
     onShareDescriptionPageUrl: (String) -> Unit,
     initialSearchQuery: String? = null,
     openTorrentDetailsInApp: Boolean = false,

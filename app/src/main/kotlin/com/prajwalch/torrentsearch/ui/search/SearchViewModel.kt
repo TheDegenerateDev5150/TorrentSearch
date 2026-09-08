@@ -13,6 +13,7 @@ import com.prajwalch.torrentsearch.domain.TorrentFileDownloadEvent
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloadState
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloader
 import com.prajwalch.torrentsearch.domain.model.Category
+import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.SearchResults
 import com.prajwalch.torrentsearch.domain.model.SortCriteria
 import com.prajwalch.torrentsearch.domain.model.SortOptions
@@ -20,6 +21,7 @@ import com.prajwalch.torrentsearch.domain.model.SortOrder
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.filter.TorrentFilters
 import com.prajwalch.torrentsearch.network.ConnectivityChecker
+import com.prajwalch.torrentsearch.util.TorrentUtils
 import com.prajwalch.torrentsearch.util.createSortComparator
 
 import kotlinx.collections.immutable.ImmutableList
@@ -276,7 +278,34 @@ class SearchViewModel(
 
     fun bookmarkTorrent(torrent: Torrent) {
         viewModelScope.launch {
-            bookmarkRepository.bookmarkTorrent(torrent = torrent)
+            val magnetUri = when (torrent.magnetUriState) {
+                is MagnetUriState.Available -> {
+                    torrent.magnetUriState.magnetUri
+                }
+
+                is MagnetUriState.FetchRequired -> {
+                    searchProvidersGateway.getMagnetUri(
+                        torrentId = torrent.id,
+                        sourceUrl = torrent.magnetUriState.url,
+                        providerName = torrent.providerName,
+                    )
+                }
+            }
+
+            bookmarkRepository.createAndAddBookmark(
+                torrentId = torrent.id,
+                name = torrent.name,
+                magnetUri = magnetUri,
+                size = torrent.size,
+                seeders = torrent.seeders,
+                peers = torrent.seeders,
+                providerName = torrent.providerName,
+                uploadDate = torrent.uploadDate,
+                category = torrent.category,
+                descriptionPageUrl = torrent.descriptionPageUrl,
+                fileDownloadLink = torrent.fileDownloadLink,
+            )
+//            bookmarkRepository.bookmarkTorrent(torrent = torrent)
         }
     }
 
@@ -286,18 +315,14 @@ class SearchViewModel(
         }
     }
 
-    fun downloadTorrentFile(url: String, fileName: String) {
+    fun downloadTorrentFile(downloadUrl: String?, magnetUri: String, fileName: String) {
         viewModelScope.launch {
-            torrentFileDownloader.download(url = url, fileName = fileName)
-        }
-    }
-
-    fun downloadTorrentFileUsingInfoHash(infoHash: String, fileName: String) {
-        viewModelScope.launch {
-            torrentFileDownloader.tryDownloadUsingInfoHash(
-                infoHash = infoHash,
-                fileName = fileName,
-            )
+            if (downloadUrl != null) {
+                torrentFileDownloader.download(downloadUrl, fileName)
+            } else {
+                val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
+                torrentFileDownloader.tryDownloadUsingInfoHash(infoHash, fileName)
+            }
         }
     }
 
