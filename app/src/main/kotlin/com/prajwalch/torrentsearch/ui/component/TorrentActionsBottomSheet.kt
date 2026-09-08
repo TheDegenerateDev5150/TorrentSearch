@@ -348,6 +348,7 @@ private fun ListItemDefaults.colors(enabled: Boolean): ListItemColors {
     } else {
         with(colors()) {
             copy(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 headlineColor = disabledHeadlineColor,
                 leadingIconColor = disabledLeadingIconColor,
             )
