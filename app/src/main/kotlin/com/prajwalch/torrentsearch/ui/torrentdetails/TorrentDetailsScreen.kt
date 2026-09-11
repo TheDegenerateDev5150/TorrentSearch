@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,10 +63,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.Category
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
-import com.prajwalch.torrentsearch.ui.TorrentFileDownloadEffect
 import com.prajwalch.torrentsearch.ui.component.NSFWBadge
 import com.prajwalch.torrentsearch.ui.component.NoInternetConnectionState
+import com.prajwalch.torrentsearch.ui.component.TorrentClientNotFoundDialog
 import com.prajwalch.torrentsearch.ui.extension.copyText
+import com.prajwalch.torrentsearch.ui.extension.openMagnetLink
+import com.prajwalch.torrentsearch.ui.extension.startTextShareIntent
 import com.prajwalch.torrentsearch.ui.theme.spaces
 import com.prajwalch.torrentsearch.ui.torrentdetails.component.CallToActionButton
 import com.prajwalch.torrentsearch.ui.torrentdetails.component.CoverImage
@@ -86,14 +89,13 @@ import java.time.Instant
 @Composable
 fun TorrentDetailsScreen(
     onNavigateBack: () -> Unit,
-    onOpenMagnetLink: (String) -> Unit,
-    onShareDetailsPageLink: (url: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TorrentDetailsViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val torrentFileDownloadState by viewModel.torrentFileDownloadState.collectAsStateWithLifecycle()
+//    val torrentFileDownloadState by viewModel.torrentFileDownloadState.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val clipboard = LocalClipboard.current
 
@@ -103,12 +105,19 @@ fun TorrentDetailsScreen(
     val linkCopiedMessage = stringResource(R.string.torrent_details_message_link_copied)
     val infoHashCopiedMessage = stringResource(R.string.torrent_details_message_info_hash_copied)
 
-    TorrentFileDownloadEffect(
-        onWrite = viewModel::writeTorrentFile,
-        state = torrentFileDownloadState,
-        events = viewModel.torrentFileDownloadEvents,
-        snackbarHostState = snackbarHostState,
-    )
+    var showTorrentClientNotFoundDialog by rememberSaveable { mutableStateOf(false) }
+    if (showTorrentClientNotFoundDialog) {
+        TorrentClientNotFoundDialog(
+            onConfirmation = { showTorrentClientNotFoundDialog = false },
+        )
+    }
+
+//    TorrentFileDownloadEffect(
+//        onWrite = viewModel::writeTorrentFile,
+//        state = torrentFileDownloadState,
+//        events = viewModel.torrentFileDownloadEvents,
+//        snackbarHostState = snackbarHostState,
+//    )
 
     Scaffold(
         modifier = modifier
@@ -118,7 +127,7 @@ fun TorrentDetailsScreen(
             TorrentDetailsScreenTopBar(
                 onNavigateBack = onNavigateBack,
                 onOpenPageLink = { uriHandler.openUri(viewModel.detailsPageUrl) },
-                onSharePageLink = { onShareDetailsPageLink(viewModel.detailsPageUrl) },
+                onSharePageLink = { context.startTextShareIntent(viewModel.detailsPageUrl) },
                 onCopyPageLink = {
                     coroutineScope.launch {
                         clipboard.copyText(viewModel.detailsPageUrl)
@@ -190,19 +199,22 @@ fun TorrentDetailsScreen(
                         modifier = Modifier.fillMaxSize(),
                         details = torrentDetails,
                         providerName = viewModel.providerName,
-                        onOpenMagnetLink = { onOpenMagnetLink(torrentDetails.magnetUri) },
+                        onOpenMagnetLink = {
+                            showTorrentClientNotFoundDialog =
+                                !context.openMagnetLink(torrentDetails.magnetUri)
+                        },
                         onDownloadTorrentFile = {
-                            if (torrentDetails.fileDownloadLink != null) {
-                                viewModel.downloadTorrentFile(
-                                    url = torrentDetails.fileDownloadLink,
-                                    fileName = torrentDetails.name,
-                                )
-                            } else {
-                                viewModel.downloadTorrentFileFromInfoHash(
-                                    infoHash = torrentDetails.infoHash,
-                                    fileName = torrentDetails.name,
-                                )
-                            }
+//                            if (torrentDetails.fileDownloadLink != null) {
+//                                viewModel.downloadTorrentFile(
+//                                    url = torrentDetails.fileDownloadLink,
+//                                    fileName = torrentDetails.name,
+//                                )
+//                            } else {
+//                                viewModel.downloadTorrentFileFromInfoHash(
+//                                    infoHash = torrentDetails.infoHash,
+//                                    fileName = torrentDetails.name,
+//                                )
+//                            }
                         },
                         onCopyInfoHash = {
                             coroutineScope.launch {

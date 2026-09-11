@@ -20,9 +20,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-import java.io.IOException
-import java.io.OutputStream
 import org.koin.core.annotation.KoinViewModel
+import java.io.IOException
 
 data class TorrentDetailsUiState(
     val state: TorrentDetailsState = TorrentDetailsState.Loading,
@@ -68,9 +67,6 @@ class TorrentDetailsViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = TorrentDetailsUiState(),
     )
-
-    val torrentFileDownloadState = torrentFileDownloader.state
-    val torrentFileDownloadEvents = torrentFileDownloader.events
 
     init {
         loadDetails()
@@ -127,24 +123,24 @@ class TorrentDetailsViewModel(
         TorrentDetailsState.SomethingWentWrong(e.message)
     }
 
-    fun downloadTorrentFile(url: String, fileName: String) {
-        viewModelScope.launch {
-            torrentFileDownloader.download(url = url, fileName = fileName)
-        }
-    }
+//    fun downloadTorrentFile(url: String, fileName: String) {
+//        viewModelScope.launch {
+//            torrentFileDownloader.download(url = url, fileName = fileName)
+//        }
+//    }
 
-    fun downloadTorrentFileFromInfoHash(infoHash: String, fileName: String) {
-        viewModelScope.launch {
-            torrentFileDownloader.tryDownloadUsingInfoHash(
-                infoHash = infoHash,
-                fileName = fileName,
-            )
-        }
-    }
+//    fun downloadTorrentFileFromInfoHash(infoHash: String, fileName: String) {
+//        viewModelScope.launch {
+//            torrentFileDownloader.tryDownloadUsingInfoHash(
+//                infoHash = infoHash,
+//                fileName = fileName,
+//            )
+//        }
+//    }
 
-    fun writeTorrentFile(outputStream: OutputStream) {
-        viewModelScope.launch {
-            torrentFileDownloader.writeFileContent(outputStream)
-        }
-    }
+//    fun writeTorrentFile(outputStream: OutputStream) {
+//        viewModelScope.launch {
+//            torrentFileDownloader.writeFileContent(outputStream)
+//        }
+//    }
 }

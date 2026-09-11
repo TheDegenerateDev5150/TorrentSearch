@@ -34,28 +34,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.Torrent
-import com.prajwalch.torrentsearch.ui.TorrentFileDownloadEffect
 import com.prajwalch.torrentsearch.ui.browse.component.BrowseFilters
 import com.prajwalch.torrentsearch.ui.browse.component.TorrentList
 import com.prajwalch.torrentsearch.ui.browse.component.TorrentsUnavailableState
-import com.prajwalch.torrentsearch.ui.component.ActionListItem
 import com.prajwalch.torrentsearch.ui.component.AnimatedScrollToTopFAB
 import com.prajwalch.torrentsearch.ui.component.FilterSearchBar
 import com.prajwalch.torrentsearch.ui.component.NoInternetConnectionState
-import com.prajwalch.torrentsearch.ui.component.TorrentActionsBottomSheet
-import com.prajwalch.torrentsearch.ui.extension.copyText
+import com.prajwalch.torrentsearch.ui.component.TorrentClientNotFoundDialog
 import com.prajwalch.torrentsearch.ui.rememberTorrentListState
 import com.prajwalch.torrentsearch.ui.theme.spaces
+import com.prajwalch.torrentsearch.ui.torrentactions.TorrentActionsBottomSheet
 
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
@@ -69,94 +65,38 @@ fun BrowseScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToProviders: () -> Unit,
-    onOpenMagnetLink: (String) -> Unit,
-    onShareMagnetLink: (String) -> Unit,
-    onOpenDescriptionPage: (url: String, providerName: String) -> Unit,
-    onShareDescriptionPageUrl: (String) -> Unit,
+    onNavigateToTorrentDetails: (url: String, providerName: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BrowseViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val torrentFileDownloadState by viewModel.torrentFileDownloadState.collectAsStateWithLifecycle()
 
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val torrentListState = rememberTorrentListState(itemsCount = { uiState.torrents.size })
 
+    var showTorrentClientNotFoundDialog by rememberSaveable { mutableStateOf(false) }
+    if (showTorrentClientNotFoundDialog) {
+        TorrentClientNotFoundDialog(
+            onConfirmation = { showTorrentClientNotFoundDialog = false },
+        )
+    }
+
     var selectedTorrent by retain { mutableStateOf<Torrent?>(null) }
     selectedTorrent?.let { torrent ->
-        val clipboard = LocalClipboard.current
-
-        val torrentBookmarkedMessage = stringResource(
-            R.string.bookmarked_message,
-        )
-        val magnetLinkCopiedMessage = stringResource(
-            R.string.torrent_list_magnet_link_copied_message
-        )
-        val urlCopiedMessage = stringResource(
-            R.string.torrent_list_url_copied_message,
-        )
-
         TorrentActionsBottomSheet(
             onDismiss = { selectedTorrent = null },
             torrent = torrent,
-            customAction = {
-                ActionListItem(
-                    modifier = Modifier.clip(MaterialTheme.shapes.large),
-                    onClick = {
-                        viewModel.bookmarkTorrent(torrent)
-                        selectedTorrent = null
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(torrentBookmarkedMessage)
-                        }
-                    },
-                    icon = painterResource(R.drawable.ic_star),
-                    label = stringResource(R.string.torrent_list_action_bookmark_torrent),
-                )
-            },
-            onOpenMagnetLink = onOpenMagnetLink,
-            onDownloadTorrentFile = { downloadUrl, magnetUri ->
-                viewModel.downloadTorrentFile(
-                    downloadUrl = downloadUrl,
-                    magnetUri = magnetUri,
-                    fileName = torrent.name,
-                )
-            },
-            onCopyMagnetLink = { magnetUri ->
+            onTorrentClientNotFound = { showTorrentClientNotFoundDialog = true },
+            onNavigateToDetails = onNavigateToTorrentDetails,
+            onShowSnackBar = { message ->
                 coroutineScope.launch {
-                    clipboard.copyText(magnetUri)
-                    snackbarHostState.showSnackbar(magnetLinkCopiedMessage)
-                }
-            },
-            onShareMagnetLink = onShareMagnetLink,
-            onOpenDescriptionPage = {
-                torrent.descriptionPageUrl?.let {
-                    onOpenDescriptionPage(it, torrent.providerName)
-                }
-            },
-            onCopyDescriptionPageUrl = {
-                torrent.descriptionPageUrl?.let {
-                    coroutineScope.launch {
-                        clipboard.copyText(it)
-                        snackbarHostState.showSnackbar(urlCopiedMessage)
-                    }
-                }
-            },
-            onShareDescriptionPageUrl = {
-                torrent.descriptionPageUrl?.let {
-                    onShareDescriptionPageUrl(it)
+                    snackbarHostState.showSnackbar(message)
                 }
             },
         )
     }
-
-    TorrentFileDownloadEffect(
-        onWrite = viewModel::writeTorrentFile,
-        state = torrentFileDownloadState,
-        events = viewModel.torrentFileDownloadEvents,
-        snackbarHostState = snackbarHostState,
-    )
 
     var showSearchBar by rememberSaveable { mutableStateOf(false) }
     val textFieldState = rememberTextFieldState()

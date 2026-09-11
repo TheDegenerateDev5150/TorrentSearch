@@ -6,11 +6,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -18,7 +13,6 @@ import androidx.navigation.compose.rememberNavController
 import com.prajwalch.torrentsearch.domain.model.Category
 import com.prajwalch.torrentsearch.ui.bookmarks.BookmarksScreen
 import com.prajwalch.torrentsearch.ui.browse.BrowseScreen
-import com.prajwalch.torrentsearch.ui.component.TorrentClientNotFoundDialog
 import com.prajwalch.torrentsearch.ui.home.HomeScreen
 import com.prajwalch.torrentsearch.ui.search.SearchScreen
 import com.prajwalch.torrentsearch.ui.searchhistory.SearchHistoryScreen
@@ -55,36 +49,9 @@ private object Bookmarks
 private object SearchHistory
 
 @Composable
-fun TorrentSearchApp(
-    onOpenMagnetLink: (String) -> Boolean,
-    onShareMagnetLink: (String) -> Unit,
-    onShareDescriptionPageUrl: (String) -> Unit,
-    initialSearchQuery: String? = null,
-    openTorrentDetailsInApp: Boolean = false,
-) {
-    val uriHandler = LocalUriHandler.current
-    val navController = rememberNavController()
-
-    val openDescriptionPage = { url: String, providerName: String ->
-        if (!openTorrentDetailsInApp) {
-            uriHandler.openUri(url)
-        } else {
-            val detailsRoute = TorrentDetails(
-                detailsPageUrl = url,
-                providerName = providerName,
-            )
-            navController.navigate(detailsRoute)
-        }
-    }
-
-    var showTorrentClientNotFoundDialog by rememberSaveable { mutableStateOf(false) }
-    if (showTorrentClientNotFoundDialog) {
-        TorrentClientNotFoundDialog(
-            onConfirmation = { showTorrentClientNotFoundDialog = false },
-        )
-    }
-
+fun TorrentSearchApp(initialSearchQuery: String? = null) {
     val activity = LocalActivity.current
+    val navController = rememberNavController()
     val startDestination = initialSearchQuery?.let { Search(it) } ?: Home
 
     NavHost(
@@ -133,29 +100,23 @@ fun TorrentSearchApp(
                 },
                 onNavigateToSettings = { navController.navigateToSettings() },
                 onNavigateToProviders = { navController.navigateToSearchProviders() },
-                onOpenMagnetLink = { showTorrentClientNotFoundDialog = !onOpenMagnetLink(it) },
-                onShareMagnetLink = onShareMagnetLink,
-                onOpenDescriptionPage = openDescriptionPage,
-                onShareDescriptionPageUrl = onShareDescriptionPageUrl,
+                onNavigateToTorrentDetails = { pageUrl, providerName ->
+                    navController.navigate(TorrentDetails(pageUrl, providerName))
+                },
             )
         }
 
         composable<TorrentDetails> {
-            TorrentDetailsScreen(
-                onNavigateBack = navController::navigateUp,
-                onOpenMagnetLink = { showTorrentClientNotFoundDialog = !onOpenMagnetLink(it) },
-                onShareDetailsPageLink = onShareDescriptionPageUrl,
-            )
+            TorrentDetailsScreen(onNavigateBack = { navController.navigateUp() })
         }
 
         composable<Bookmarks> {
             BookmarksScreen(
                 onNavigateBack = { navController.navigateUp() },
                 onNavigateToSettings = { navController.navigateToSettings() },
-                onOpenMagnetLink = { showTorrentClientNotFoundDialog = !onOpenMagnetLink(it) },
-                onShareMagnetLink = onShareMagnetLink,
-                onOpenDescriptionPage = openDescriptionPage,
-                onShareDescriptionPageUrl = onShareDescriptionPageUrl,
+                onNavigateToTorrentDetails = { pageUrl, providerName ->
+                    navController.navigate(TorrentDetails(pageUrl, providerName))
+                },
             )
         }
 
@@ -166,7 +127,7 @@ fun TorrentSearchApp(
                     navController.navigate(Search(query = it)) {
                         popUpTo(route = Home)
                     }
-                }
+                },
             )
         }
 
@@ -175,10 +136,9 @@ fun TorrentSearchApp(
                 onNavigateBack = { navController.navigateUp() },
                 onNavigateToSettings = { navController.navigateToSettings() },
                 onNavigateToProviders = { navController.navigateToSearchProviders() },
-                onOpenMagnetLink = { showTorrentClientNotFoundDialog = !onOpenMagnetLink(it) },
-                onShareMagnetLink = onShareMagnetLink,
-                onOpenDescriptionPage = openDescriptionPage,
-                onShareDescriptionPageUrl = onShareDescriptionPageUrl,
+                onNavigateToTorrentDetails = { pageUrl, providerName ->
+                    navController.navigate(TorrentDetails(pageUrl, providerName))
+                },
             )
         }
 

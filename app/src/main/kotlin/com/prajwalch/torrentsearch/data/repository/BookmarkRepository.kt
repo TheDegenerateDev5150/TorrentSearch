@@ -33,6 +33,10 @@ class BookmarkRepository(private val dao: BookmarkedTorrentDao) {
         return dao.getBookmarksCount()
     }
 
+    fun getBookmarkIds(): Flow<Set<String>> {
+        return dao.getBookmarkIds().map { it.toSet() }
+    }
+
 //    suspend fun bookmarkTorrent(torrent: Torrent) {
 //        dao.insertBookmark(torrent.toEntity())
 //    }

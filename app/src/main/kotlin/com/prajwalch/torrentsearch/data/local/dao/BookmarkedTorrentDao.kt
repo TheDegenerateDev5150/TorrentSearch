@@ -19,6 +19,9 @@ interface BookmarkedTorrentDao {
     @Query("SELECT * FROM bookmarks ORDER by id DESC")
     fun getAllBookmarks(): Flow<List<BookmarkedTorrentEntity>>
 
+    @Query("SELECT id FROM bookmarks")
+    fun getBookmarkIds(): Flow<List<String>>
+
     @Query("SELECT COUNT(*) FROM bookmarks")
     fun getBookmarksCount(): Flow<Int>
 

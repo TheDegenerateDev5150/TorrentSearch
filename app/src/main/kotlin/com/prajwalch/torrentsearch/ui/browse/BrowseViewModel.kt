@@ -5,21 +5,15 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
-import com.prajwalch.torrentsearch.data.repository.BookmarkRepository
 import com.prajwalch.torrentsearch.data.repository.SettingsRepository
 import com.prajwalch.torrentsearch.data.repository.ViewedTorrentRepository
 import com.prajwalch.torrentsearch.domain.SearchProvidersGateway
-import com.prajwalch.torrentsearch.domain.TorrentFileDownloadEvent
-import com.prajwalch.torrentsearch.domain.TorrentFileDownloadState
-import com.prajwalch.torrentsearch.domain.TorrentFileDownloader
 import com.prajwalch.torrentsearch.domain.model.Category
-import com.prajwalch.torrentsearch.domain.model.MagnetUriState
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.domain.model.filterIfAll
 import com.prajwalch.torrentsearch.domain.model.sortedWithComparator
 import com.prajwalch.torrentsearch.filter.TorrentFilters
 import com.prajwalch.torrentsearch.network.ConnectivityChecker
-import com.prajwalch.torrentsearch.util.TorrentUtils
 
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.PersistentList
@@ -44,7 +38,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 import org.koin.core.annotation.KoinViewModel
-import java.io.OutputStream
 import kotlin.time.Duration.Companion.seconds
 
 data class BrowseUiState(
@@ -98,9 +91,7 @@ class BrowseViewModel(
     settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
     private val searchProvidersGateway: SearchProvidersGateway,
-    private val bookmarkRepository: BookmarkRepository,
     private val viewedTorrentRepository: ViewedTorrentRepository,
-    private val torrentFileDownloader: TorrentFileDownloader,
 ) : ViewModel() {
     /**
      * A torrents' loader.
@@ -150,18 +141,6 @@ class BrowseViewModel(
         started = SharingStarted.WhileSubscribed(5.seconds),
         initialValue = BrowseUiState(),
     )
-
-    /**
-     * The globally observable, read-only state of the torrent file downloader.
-     */
-    val torrentFileDownloadState: StateFlow<TorrentFileDownloadState> =
-        torrentFileDownloader.state
-
-    /**
-     * The globally observable, read-only events of the torrent file downloader.
-     */
-    val torrentFileDownloadEvents: Flow<TorrentFileDownloadEvent> =
-        torrentFileDownloader.events
 
     init {
         loadTorrents()
@@ -224,59 +203,9 @@ class BrowseViewModel(
             .let(torrentsProcessor::updateExcludedSearchProviders)
     }
 
-    fun bookmarkTorrent(torrent: Torrent) {
-        viewModelScope.launch {
-            val magnetUri = when (torrent.magnetUriState) {
-                is MagnetUriState.Available -> {
-                    torrent.magnetUriState.magnetUri
-                }
-
-                is MagnetUriState.FetchRequired -> {
-                    searchProvidersGateway.getMagnetUri(
-                        torrentId = torrent.id,
-                        sourceUrl = torrent.magnetUriState.url,
-                        providerName = torrent.providerName,
-                    )
-                }
-            }
-
-            bookmarkRepository.createAndAddBookmark(
-                torrentId = torrent.id,
-                name = torrent.name,
-                magnetUri = magnetUri,
-                size = torrent.size,
-                seeders = torrent.seeders,
-                peers = torrent.seeders,
-                providerName = torrent.providerName,
-                uploadDate = torrent.uploadDate,
-                category = torrent.category,
-                descriptionPageUrl = torrent.descriptionPageUrl,
-                fileDownloadLink = torrent.fileDownloadLink,
-            )
-//            bookmarkRepository.bookmarkTorrent(torrent = torrent)
-        }
-    }
-
     fun markAsViewed(id: String) {
         viewModelScope.launch {
             viewedTorrentRepository.markAsViewed(id)
-        }
-    }
-
-    fun downloadTorrentFile(downloadUrl: String?, magnetUri: String, fileName: String) {
-        viewModelScope.launch {
-            if (downloadUrl != null) {
-                torrentFileDownloader.download(downloadUrl, fileName)
-            } else {
-                val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
-                torrentFileDownloader.tryDownloadUsingInfoHash(infoHash, fileName)
-            }
-        }
-    }
-
-    fun writeTorrentFile(outputStream: OutputStream) {
-        viewModelScope.launch {
-            torrentFileDownloader.writeFileContent(outputStream)
         }
     }
 }

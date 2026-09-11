@@ -37,13 +37,6 @@
     <string name="torznab_conn_check_result_unexpected_response">Unexpected response (%1$d)</string>
     <string name="torznab_conn_check_result_unexpected_error">Unexpected error</string>
 
-    <string name="torrent_file_downloading_message">Downloading torrent file…</string>
-    <string name="torrent_file_download_error">Download failed</string>
-    <string name="torrent_file_not_found_error">Torrent file not found on any source</string>
-    <string name="torrent_file_saving_message">Saving torrent file…</string>
-    <string name="torrent_file_saved_message">Torrent file saved</string>
-    <string name="torrent_file_save_error">Torrent file save failed</string>
-
     <string name="torrent_client_not_found_title">Torrent client not found</string>
     <string name="torrent_client_not_found_content">Install a torrent client to open magnet links.</string>
     <string name="torrent_client_not_found_recommended_client_hint">Recommended client</string>
@@ -53,17 +46,26 @@
     <string name="torrent_client_pikatorrent" translatable="false">PikaTorrent</string>
     <string name="torrent_client_torrserve" translatable="false">TorrServe</string>
 
-    <string name="torrent_list_action_bookmark_torrent">Bookmark torrent</string>
-    <string name="torrent_list_action_delete_bookmark">Delete bookmark</string>
-    <string name="torrent_list_action_open_magnet_link">Open magnet link</string>
-    <string name="torrent_list_action_download_torrent_file">Download torrent file</string>
-    <string name="torrent_list_action_copy_magnet_link">Copy magnet link</string>
-    <string name="torrent_list_action_share_magnet_link">Share magnet link</string>
-    <string name="torrent_list_action_open_description_page">Open description page</string>
-    <string name="torrent_list_action_copy_description_page_url">Copy description page URL</string>
-    <string name="torrent_list_action_share_description_page_url">Share description page URL</string>
-    <string name="torrent_list_magnet_link_copied_message">Magnet link copied to clipboard!</string>
-    <string name="torrent_list_url_copied_message">Url copied to clipboard!</string>
+    <string name="torrent_action_bookmark_torrent">Bookmark torrent</string>
+    <string name="torrent_action_delete_bookmark">Delete bookmark</string>
+    <string name="torrent_action_open_magnet_link">Open magnet link</string>
+    <string name="torrent_action_download_torrent_file">Download torrent file</string>
+    <string name="torrent_action_copy_magnet_link">Copy magnet link</string>
+    <string name="torrent_action_share_magnet_link">Share magnet link</string>
+    <string name="torrent_action_open_description_page">Open description page</string>
+    <string name="torrent_action_copy_description_page_url">Copy description page URL</string>
+    <string name="torrent_action_share_description_page_url">Share description page URL</string>
+    <string name="torrent_message_magnet_link_copied">Magnet link copied to clipboard!</string>
+    <string name="torrent_message_url_copied">Url copied to clipboard!</string>
+    <string name="torrent_message_getting_magnet_link">Getting magnet link…</string>
+    <string name="torrent_message_file_downloading">Downloading torrent file…</string>
+    <string name="torrent_message_file_download_complete">Download complete</string>
+    <string name="torrent_button_save_to_file">Save to file</string>
+    <string name="torrent_message_file_download_failed">Download failed</string>
+    <string name="torrent_message_file_not_found">Torrent file not found on any source</string>
+    <string name="torrent_message_file_saving">Saving torrent file…</string>
+    <string name="torrent_message_file_saved">Torrent file saved</string>
+    <string name="torrent_message_file_save_failed">Torrent file save failed</string>
 
     <!-- MainActivity -->
     <string name="main_cannot_search_using_url_message">Cannot search using a URL</string>

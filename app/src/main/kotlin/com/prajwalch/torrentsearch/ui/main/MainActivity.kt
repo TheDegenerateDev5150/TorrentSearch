@@ -1,7 +1,6 @@
 package com.prajwalch.torrentsearch.ui.main
 
 import android.app.SearchManager
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -13,9 +12,10 @@ import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
-import androidx.core.net.toUri
+import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -53,14 +53,8 @@ class MainActivity : ComponentActivity() {
                 dynamicColor = uiState.enableDynamicTheme,
                 pureBlack = uiState.pureBlack,
             ) {
-                Surface {
-                    TorrentSearchApp(
-                        onOpenMagnetLink = ::openMagnetLink,
-                        onShareMagnetLink = ::shareMagnetLink,
-                        onShareDescriptionPageUrl = ::shareDescriptionPageUrl,
-                        initialSearchQuery = initialSearchQuery,
-                        openTorrentDetailsInApp = uiState.openTorrentDetailsInApp,
-                    )
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    TorrentSearchApp(initialSearchQuery = initialSearchQuery)
                 }
             }
         }
@@ -122,58 +116,6 @@ class MainActivity : ComponentActivity() {
     /** Shows a toast with a given message. */
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-    }
-
-    /**
-     * Attempts to open the given magnet URI.
-     *
-     * @return `true` if the client is found, `false` otherwise.
-     */
-    private fun openMagnetLink(magnetUri: String): Boolean {
-        Log.d(TAG, "openMagnetLink")
-
-        return try {
-            val torrentClientOpenIntent = Intent(Intent.ACTION_VIEW, magnetUri.toUri())
-            startActivity(torrentClientOpenIntent)
-            true
-        } catch (_: ActivityNotFoundException) {
-            Log.d(TAG, "Torrent client activity not found")
-            false
-        }
-    }
-
-    /** Starts the application chooser to share magnet uri with. */
-    private fun shareMagnetLink(magnetUri: String) {
-        Log.d(TAG, "shareMagnetLink")
-
-        try {
-            startTextShareIntent(magnetUri)
-        } catch (_: ActivityNotFoundException) {
-            Log.d(TAG, "Activity not found")
-        }
-    }
-
-    /** Starts the application chooser to share url with. */
-    private fun shareDescriptionPageUrl(url: String) {
-        Log.d(TAG, "shareDescriptionPage")
-
-        try {
-            startTextShareIntent(url)
-        } catch (_: ActivityNotFoundException) {
-            Log.d(TAG, "Activity not found")
-        }
-    }
-
-    /** Starts the application chooser to share the text with. */
-    private fun startTextShareIntent(text: String) {
-        val sendIntent = Intent().apply {
-            action = Intent.ACTION_SEND
-            type = "text/plain"
-
-            putExtra(Intent.EXTRA_TEXT, text)
-        }
-        val shareIntent = Intent.createChooser(sendIntent, null)
-        startActivity(shareIntent)
     }
 
     private companion object {

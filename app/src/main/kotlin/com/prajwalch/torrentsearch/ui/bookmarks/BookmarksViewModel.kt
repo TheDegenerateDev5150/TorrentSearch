@@ -6,13 +6,11 @@ import androidx.lifecycle.viewModelScope
 
 import com.prajwalch.torrentsearch.data.repository.BookmarkRepository
 import com.prajwalch.torrentsearch.data.repository.SettingsRepository
-import com.prajwalch.torrentsearch.domain.TorrentFileDownloader
 import com.prajwalch.torrentsearch.domain.model.SortCriteria
 import com.prajwalch.torrentsearch.domain.model.SortOptions
 import com.prajwalch.torrentsearch.domain.model.SortOrder
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.filter.TorrentFilters
-import com.prajwalch.torrentsearch.util.TorrentUtils
 import com.prajwalch.torrentsearch.util.createSortComparator
 
 import kotlinx.coroutines.flow.Flow
@@ -53,7 +51,6 @@ sealed interface BookmarksState {
 class BookmarksViewModel(
     private val bookmarkRepository: BookmarkRepository,
     private val settingsRepository: SettingsRepository,
-    private val torrentFileDownloader: TorrentFileDownloader,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val filterQuery = savedStateHandle.getStateFlow(KEY_FILTER_QUERY, initialValue = "")
@@ -109,9 +106,6 @@ class BookmarksViewModel(
             initialValue = BookmarksUiState(),
         )
 
-    val torrentFileDownloadState = torrentFileDownloader.state
-    val torrentFileDownloadEvents = torrentFileDownloader.events
-
     fun hideSwipeToDeleteTip() {
         viewModelScope.launch {
             settingsRepository.showBookmarkSwipeDeleteTip(false)
@@ -162,23 +156,6 @@ class BookmarksViewModel(
     fun exportBookmarks(outputStream: OutputStream) {
         viewModelScope.launch {
             bookmarkRepository.exportBookmarks(outputStream = outputStream)
-        }
-    }
-
-    fun downloadTorrentFile(downloadUrl: String?, magnetUri: String, fileName: String) {
-        viewModelScope.launch {
-            if (downloadUrl != null) {
-                torrentFileDownloader.download(downloadUrl, fileName)
-            } else {
-                val infoHash = TorrentUtils.getInfoHashFromMagnetUri(magnetUri)
-                torrentFileDownloader.tryDownloadUsingInfoHash(infoHash, fileName)
-            }
-        }
-    }
-
-    fun writeTorrentFile(outputStream: OutputStream) {
-        viewModelScope.launch {
-            torrentFileDownloader.writeFileContent(outputStream)
         }
     }
 

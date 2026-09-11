@@ -16,7 +16,6 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -36,32 +35,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.constant.TorrentSearchConstants
 import com.prajwalch.torrentsearch.domain.model.Torrent
-import com.prajwalch.torrentsearch.ui.TorrentFileDownloadEffect
 import com.prajwalch.torrentsearch.ui.bookmarks.component.BookmarkList
 import com.prajwalch.torrentsearch.ui.bookmarks.component.BookmarksScreenTopBar
 import com.prajwalch.torrentsearch.ui.bookmarks.component.DeleteAllConfirmationDialog
-import com.prajwalch.torrentsearch.ui.component.ActionListItem
 import com.prajwalch.torrentsearch.ui.component.AnimatedScrollToTopFAB
 import com.prajwalch.torrentsearch.ui.component.ContentState
 import com.prajwalch.torrentsearch.ui.component.FilterSearchBar
 import com.prajwalch.torrentsearch.ui.component.MessageCard
 import com.prajwalch.torrentsearch.ui.component.MessageType
-import com.prajwalch.torrentsearch.ui.component.TorrentActionsBottomSheet
-import com.prajwalch.torrentsearch.ui.extension.copyText
+import com.prajwalch.torrentsearch.ui.component.TorrentClientNotFoundDialog
 import com.prajwalch.torrentsearch.ui.rememberTorrentListState
 import com.prajwalch.torrentsearch.ui.theme.spaces
+import com.prajwalch.torrentsearch.ui.torrentactions.TorrentActionsBottomSheet
 
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
@@ -74,15 +68,11 @@ import org.koin.androidx.compose.koinViewModel
 fun BookmarksScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onOpenMagnetLink: (String) -> Unit,
-    onShareMagnetLink: (String) -> Unit,
-    onOpenDescriptionPage: (url: String, providerName: String) -> Unit,
-    onShareDescriptionPageUrl: (String) -> Unit,
+    onNavigateToTorrentDetails: (pageUrl: String, providerName: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BookmarksViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val torrentFileDownloadState by viewModel.torrentFileDownloadState.collectAsStateWithLifecycle()
 
     val contentResolver = LocalContext.current.contentResolver
     val bookmarksExportedFileChooser = rememberLauncherForActivityResult(
@@ -108,71 +98,6 @@ fun BookmarksScreen(
         if (bookmarksState is BookmarksState.Ready) bookmarksState.bookmarks.size else 0
     })
 
-    var selectedBookmark by retain { mutableStateOf<Torrent?>(null) }
-    selectedBookmark?.let { bookmark ->
-        val clipboard = LocalClipboard.current
-        val magnetLinkCopiedMessage = stringResource(
-            R.string.torrent_list_magnet_link_copied_message
-        )
-        val urlCopiedMessage = stringResource(
-            R.string.torrent_list_url_copied_message,
-        )
-
-        TorrentActionsBottomSheet(
-            onDismiss = { selectedBookmark = null },
-            torrent = bookmark,
-            customAction = {
-                ActionListItem(
-                    modifier = Modifier.clip(MaterialTheme.shapes.large),
-                    onClick = {
-                        viewModel.deleteBookmarkById(bookmark.id)
-                        selectedBookmark = null
-                    },
-                    icon = painterResource(R.drawable.ic_delete),
-                    label = stringResource(R.string.torrent_list_action_delete_bookmark),
-                    colors = ListItemDefaults.colors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        leadingIconColor = MaterialTheme.colorScheme.onErrorContainer,
-                        headlineColor = MaterialTheme.colorScheme.onErrorContainer,
-                    ),
-                )
-            },
-            onOpenMagnetLink = onOpenMagnetLink,
-            onDownloadTorrentFile = { downloadUrl, magnetUri ->
-                viewModel.downloadTorrentFile(
-                    downloadUrl = downloadUrl,
-                    magnetUri = magnetUri,
-                    fileName = bookmark.name,
-                )
-            },
-            onCopyMagnetLink = { magnetUri ->
-                coroutineScope.launch {
-                    clipboard.copyText(magnetUri)
-                    snackbarHostState.showSnackbar(magnetLinkCopiedMessage)
-                }
-            },
-            onShareMagnetLink = onShareMagnetLink,
-            onOpenDescriptionPage = {
-                bookmark.descriptionPageUrl?.let {
-                    onOpenDescriptionPage(it, bookmark.providerName)
-                }
-            },
-            onCopyDescriptionPageUrl = {
-                bookmark.descriptionPageUrl?.let {
-                    coroutineScope.launch {
-                        clipboard.copyText(it)
-                        snackbarHostState.showSnackbar(urlCopiedMessage)
-                    }
-                }
-            },
-            onShareDescriptionPageUrl = {
-                bookmark.descriptionPageUrl?.let {
-                    onShareDescriptionPageUrl(it)
-                }
-            },
-        )
-    }
-
     var showDeleteAllConfirmationDialog by rememberSaveable { mutableStateOf(false) }
     if (showDeleteAllConfirmationDialog) {
         DeleteAllConfirmationDialog(
@@ -184,12 +109,27 @@ fun BookmarksScreen(
         )
     }
 
-    TorrentFileDownloadEffect(
-        onWrite = viewModel::writeTorrentFile,
-        state = torrentFileDownloadState,
-        events = viewModel.torrentFileDownloadEvents,
-        snackbarHostState = snackbarHostState,
-    )
+    var showTorrentClientNotFoundDialog by rememberSaveable { mutableStateOf(false) }
+    if (showTorrentClientNotFoundDialog) {
+        TorrentClientNotFoundDialog(
+            onConfirmation = { showTorrentClientNotFoundDialog = false },
+        )
+    }
+
+    var selectedBookmark by retain { mutableStateOf<Torrent?>(null) }
+    selectedBookmark?.let { bookmark ->
+        TorrentActionsBottomSheet(
+            onDismiss = { selectedBookmark = null },
+            torrent = bookmark,
+            onTorrentClientNotFound = { showTorrentClientNotFoundDialog = true },
+            onNavigateToDetails = onNavigateToTorrentDetails,
+            onShowSnackBar = { message ->
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(message)
+                }
+            },
+        )
+    }
 
     var showSearchBar by rememberSaveable { mutableStateOf(false) }
     val textFieldState = rememberTextFieldState()

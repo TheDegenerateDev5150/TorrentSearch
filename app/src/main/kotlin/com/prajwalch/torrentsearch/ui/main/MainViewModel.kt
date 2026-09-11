@@ -18,7 +18,6 @@ data class MainUiState(
     val enableDynamicTheme: Boolean = true,
     val darkTheme: DarkTheme = DarkTheme.FollowSystem,
     val pureBlack: Boolean = false,
-    val openTorrentDetailsInApp: Boolean = true,
 )
 
 @KoinViewModel
@@ -29,7 +28,6 @@ class MainViewModel(
         settingsRepository.enableDynamicTheme,
         settingsRepository.darkTheme,
         settingsRepository.pureBlack,
-        settingsRepository.openTorrentDetailsInApp,
         ::MainUiState,
     ).stateIn(
         scope = viewModelScope,

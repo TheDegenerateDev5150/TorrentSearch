@@ -98,7 +98,7 @@ fun TorrentListItem(
 }
 
 @Composable
-private fun TorrentMetadata(
+fun TorrentMetadata(
     size: String?,
     seeders: UInt?,
     peers: UInt?,
@@ -186,7 +186,12 @@ private fun TorrentMetadataText(
 
 @Composable
 private fun BulletPoint(modifier: Modifier = Modifier) {
-    Text(modifier = modifier, text = "\u2022")
+    Text(
+        modifier = modifier,
+        text = "\u2022",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Preview
