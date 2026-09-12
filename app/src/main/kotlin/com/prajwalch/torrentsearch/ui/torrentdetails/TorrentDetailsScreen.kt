@@ -2,6 +2,8 @@ package com.prajwalch.torrentsearch.ui.torrentdetails
 
 import android.content.res.Configuration
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -30,8 +32,10 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -39,6 +43,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +58,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -61,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.prajwalch.torrentsearch.R
+import com.prajwalch.torrentsearch.constant.TorrentSearchConstants
 import com.prajwalch.torrentsearch.domain.model.Category
 import com.prajwalch.torrentsearch.domain.model.TorrentDetails
 import com.prajwalch.torrentsearch.ui.component.NSFWBadge
@@ -93,15 +100,16 @@ fun TorrentDetailsScreen(
     viewModel: TorrentDetailsViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-//    val torrentFileDownloadState by viewModel.torrentFileDownloadState.collectAsStateWithLifecycle()
-
-    val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    val clipboard = LocalClipboard.current
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
+    val context = LocalContext.current
+    val clipboard = LocalClipboard.current
+    val resources = LocalResources.current
+    val uriHandler = LocalUriHandler.current
+
     val linkCopiedMessage = stringResource(R.string.torrent_details_message_link_copied)
     val infoHashCopiedMessage = stringResource(R.string.torrent_details_message_info_hash_copied)
 
@@ -112,12 +120,70 @@ fun TorrentDetailsScreen(
         )
     }
 
-//    TorrentFileDownloadEffect(
-//        onWrite = viewModel::writeTorrentFile,
-//        state = torrentFileDownloadState,
-//        events = viewModel.torrentFileDownloadEvents,
-//        snackbarHostState = snackbarHostState,
-//    )
+    val createTorrentFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(TorrentSearchConstants.MIME_TYPE_TORRENT),
+    ) { fileUri ->
+        fileUri
+            ?.let(context.contentResolver::openOutputStream)
+            ?.let(viewModel::writeTorrentFileContent)
+    }
+
+    LaunchedEffect(uiState.torrentFileState) {
+        when (val torrentFileState = uiState.torrentFileState) {
+            TorrentFileState.Idle -> {
+                // No-op
+            }
+
+            is TorrentFileState.DownloadComplete -> {
+                val fileName = torrentFileState.fileName
+                createTorrentFileLauncher.launch(fileName)
+
+                val message = resources.getString(R.string.torrent_message_file_download_complete)
+                val saveToFileLabel = resources.getString(R.string.torrent_button_save_to_file)
+
+                val result = snackbarHostState.showSnackbar(
+                    message = message,
+                    actionLabel = saveToFileLabel,
+                    withDismissAction = true,
+                )
+
+                when (result) {
+                    SnackbarResult.Dismissed -> viewModel.resetTorrentFileState()
+                    SnackbarResult.ActionPerformed -> createTorrentFileLauncher.launch(fileName)
+                }
+            }
+
+            TorrentFileState.Downloading -> {
+                val message = resources.getString(R.string.torrent_message_file_downloading)
+                snackbarHostState.showSnackbar(
+                    message = message,
+                    duration = SnackbarDuration.Long,
+                )
+            }
+
+            TorrentFileState.DownloadFailed -> {
+                val message = resources.getString(R.string.torrent_message_file_download_failed)
+                snackbarHostState.showSnackbar(message)
+            }
+
+            TorrentFileState.FileNotFound -> {
+                val message = resources.getString(R.string.torrent_message_file_not_found)
+                snackbarHostState.showSnackbar(message)
+            }
+
+            TorrentFileState.WritingContent -> {
+                val message = resources.getString(R.string.torrent_message_file_saving)
+                snackbarHostState.showSnackbar(message)
+            }
+
+            TorrentFileState.WriteComplete -> {
+                val message = resources.getString(R.string.torrent_message_file_saved)
+                snackbarHostState.showSnackbar(message)
+
+                viewModel.resetTorrentFileState()
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -204,17 +270,11 @@ fun TorrentDetailsScreen(
                                 !context.openMagnetLink(torrentDetails.magnetUri)
                         },
                         onDownloadTorrentFile = {
-//                            if (torrentDetails.fileDownloadLink != null) {
-//                                viewModel.downloadTorrentFile(
-//                                    url = torrentDetails.fileDownloadLink,
-//                                    fileName = torrentDetails.name,
-//                                )
-//                            } else {
-//                                viewModel.downloadTorrentFileFromInfoHash(
-//                                    infoHash = torrentDetails.infoHash,
-//                                    fileName = torrentDetails.name,
-//                                )
-//                            }
+                            viewModel.downloadTorrentFile(
+                                url = torrentDetails.fileDownloadLink,
+                                infoHash = torrentDetails.infoHash,
+                                torrentName = torrentDetails.name,
+                            )
                         },
                         onCopyInfoHash = {
                             coroutineScope.launch {
