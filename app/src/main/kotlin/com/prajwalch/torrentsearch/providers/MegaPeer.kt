@@ -16,7 +16,10 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-class MegaPeer(private val networkClient: NetworkClient) : SearchProvider, TorrentDetailsProvider {
+class MegaPeer(private val networkClient: NetworkClient) :
+    SearchProvider,
+    MagnetUriProvider,
+    TorrentDetailsProvider {
     override val id = "megapeer"
     override val name = "MegaPeer"
     override val url = "https://megapeer.vip"
@@ -42,7 +45,6 @@ class MegaPeer(private val networkClient: NetworkClient) : SearchProvider, Torre
         Category.Other to 59,
         Category.Series to 6,
     )
-    private val detailsPageParser = MegaPeersDetailsPageParser(networkClient)
     private val resultsPageParser = MegaPeerResultsPageParser(id, name)
 
     override suspend fun search(query: String, category: Category): List<Torrent> {
@@ -56,7 +58,13 @@ class MegaPeer(private val networkClient: NetworkClient) : SearchProvider, Torre
 
     override suspend fun getDetails(detailsPageUrl: String): TorrentDetails? {
         val responseHtml = networkClient.getText(detailsPageUrl)
-        return detailsPageParser.parse(html = responseHtml, pageUrl = detailsPageUrl)
+        return MegaPeersDetailsPageParser.parse(html = responseHtml, pageUrl = detailsPageUrl)
+    }
+
+    override suspend fun getMagnetUri(sourceUrl: String): String {
+        val detailsPageHtml = networkClient.getText(sourceUrl)
+        return MegaPeersDetailsPageParser.extractMagnetUri(detailsPageHtml)
+            ?: error("Failed to retrieve magnet URI from '$sourceUrl'")
     }
 }
 
@@ -117,21 +125,18 @@ private class MegaPeerResultsPageParser(
     }
 }
 
-private class MegaPeersDetailsPageParser(private val networkClient: NetworkClient) {
-    private companion object {
-        private const val TORRENT_NAME = "h1"
-        private const val SIZE = "td:containsOwn(Размер)"
-        private const val SEEDERS = "td:containsOwn(Раздают)"
-        private const val PEERS = "td:containsOwn(Качают)"
-        private const val CATEGORY = "td:containsOwn(Категория)"
-        private const val MAGNET_URI = """a[href^="magnet:?xt="]"""
-        private const val FILE_DOWNLOAD_LINK = """a[href^="/download/"]"""
-        private const val DESCRIPTION = "table#details > tbody > tr:nth-child(1) > td:nth-child(2)"
-        private const val POSTER_URL =
-            "table#details > tbody > tr:nth-child(1) > td:nth-child(2) > img"
-        //    private const val UPLOAD_DATE = "td:containsOwn(Добавлен)"
-        //    private const val LAST_CHECKED = "td:containsOwn(Сид был)"
-    }
+private object MegaPeersDetailsPageParser {
+    private const val TORRENT_NAME = "h1"
+    private const val SIZE = "td:containsOwn(Размер)"
+    private const val SEEDERS = "td:containsOwn(Раздают)"
+    private const val PEERS = "td:containsOwn(Качают)"
+    private const val CATEGORY = "td:containsOwn(Категория)"
+    private const val MAGNET_URI = """a[href^="magnet:?xt="]"""
+    private const val FILE_DOWNLOAD_LINK = """a[href^="/download/"]"""
+    private const val DESCRIPTION = "table#details > tbody > tr:nth-child(1) > td:nth-child(2)"
+    private const val POSTER_URL = "table#details > tbody > tr:nth-child(1) > td:nth-child(2) > img"
+    //    private const val UPLOAD_DATE = "td:containsOwn(Добавлен)"
+    //    private const val LAST_CHECKED = "td:containsOwn(Сид был)"
 
     suspend fun parse(html: String, pageUrl: String): TorrentDetails? =
         withContext(Dispatchers.Default) {
@@ -220,10 +225,8 @@ private class MegaPeersDetailsPageParser(private val networkClient: NetworkClien
         else -> Category.Other
     }
 
-    suspend fun getMagnetUri(detailsPageUrl: String): String? {
-        val detailsPageHtml = withContext(Dispatchers.IO) { networkClient.getText(detailsPageUrl) }
-        return withContext(Dispatchers.Default) {
+    suspend fun extractMagnetUri(detailsPageHtml: String): String? =
+        withContext(Dispatchers.Default) {
             Jsoup.parse(detailsPageHtml).selectFirst(MAGNET_URI)?.attr("href")
         }
-    }
 }
