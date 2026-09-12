@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 
 import com.prajwalch.torrentsearch.data.repository.BookmarkRepository
 import com.prajwalch.torrentsearch.data.repository.SettingsRepository
+import com.prajwalch.torrentsearch.domain.GetMagnetUriResult
 import com.prajwalch.torrentsearch.domain.SearchProvidersGateway
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloadResult
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloader
@@ -32,6 +33,8 @@ sealed interface MagnetUriUiState {
     data object Loading : MagnetUriUiState
 
     data object Fetching : MagnetUriUiState
+
+    data object Error : MagnetUriUiState
 
     data class Ready(val magnetUri: String) : MagnetUriUiState
 }
@@ -62,12 +65,16 @@ class TorrentActionsViewModel(
             is MagnetUriState.FetchRequired -> {
                 emit(MagnetUriUiState.Fetching)
 
-                val magnetUri = searchProvidersGateway.getMagnetUri(
+                val result = searchProvidersGateway.getMagnetUri(
                     torrentId = torrent.id,
                     sourceUrl = magnetUriState.url,
                     providerName = torrent.providerName
                 )
-                emit(MagnetUriUiState.Ready(magnetUri))
+
+                when (result) {
+                    is GetMagnetUriResult.Success -> emit(MagnetUriUiState.Ready(result.magnetUri))
+                    is GetMagnetUriResult.Error -> emit(MagnetUriUiState.Error)
+                }
             }
         }
     }.stateIn(

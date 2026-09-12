@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.prajwalch.torrentsearch.R
 import com.prajwalch.torrentsearch.domain.model.Torrent
 import com.prajwalch.torrentsearch.ui.component.ContentState
+import com.prajwalch.torrentsearch.ui.component.ContentStateDefaults
 import com.prajwalch.torrentsearch.ui.component.NSFWBadge
 import com.prajwalch.torrentsearch.ui.component.TorrentMetadata
 import com.prajwalch.torrentsearch.ui.extension.toRelativeTimeSpanString
@@ -170,6 +172,7 @@ private fun TorrentActionColumn(
             when (targetMagnetUriUiState) {
                 MagnetUriUiState.Loading -> MagnetUriLoadingState()
                 MagnetUriUiState.Fetching -> MagnetUriFetchingState()
+                MagnetUriUiState.Error -> MagnetUriErrorState()
 
                 is MagnetUriUiState.Ready -> {
                     val magnetUri = targetMagnetUriUiState.magnetUri
@@ -253,5 +256,28 @@ private fun MagnetUriFetchingState(modifier: Modifier = Modifier) {
             ),
         icon = { CircularProgressIndicator() },
         title = { Text(stringResource(R.string.torrent_message_getting_magnet_link)) },
+    )
+}
+
+@Composable
+private fun MagnetUriErrorState(modifier: Modifier = Modifier) {
+    ContentState(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(224.dp)
+            .clip(MaterialTheme.shapes.large)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = MaterialTheme.shapes.large,
+            ),
+        icon = {
+            Icon(
+                modifier = Modifier.size(ContentStateDefaults.SmallIconSize),
+                painter = painterResource(R.drawable.ic_error),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+            )
+        },
+        title = { Text(stringResource(R.string.torrent_message_failed_to_get_magnet_link)) },
     )
 }

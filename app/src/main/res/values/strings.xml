@@ -58,6 +58,7 @@
     <string name="torrent_message_magnet_link_copied">Magnet link copied to clipboard!</string>
     <string name="torrent_message_url_copied">Url copied to clipboard!</string>
     <string name="torrent_message_getting_magnet_link">Getting magnet link…</string>
+    <string name="torrent_message_failed_to_get_magnet_link">Failed to get magnet link</string>
     <string name="torrent_message_file_downloading">Downloading torrent file…</string>
     <string name="torrent_message_file_download_complete">Download complete</string>
     <string name="torrent_button_save_to_file">Save to file</string>

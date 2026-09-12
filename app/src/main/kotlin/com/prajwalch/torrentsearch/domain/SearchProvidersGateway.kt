@@ -173,18 +173,35 @@ class SearchProvidersGateway(
         SearchProviderResult.Error(error)
     }
 
-    suspend fun getMagnetUri(torrentId: String, sourceUrl: String, providerName: String): String {
+    suspend fun getMagnetUri(
+        torrentId: String,
+        sourceUrl: String,
+        providerName: String,
+    ): GetMagnetUriResult {
         val cachedMagnetUri = torrentIdToMagnetUri[torrentId]
         if (cachedMagnetUri != null) {
-            return cachedMagnetUri
+            return GetMagnetUriResult.Success(cachedMagnetUri)
         }
 
         val magnetUriProvider = searchProvidersManager.findMagnetUriProviderByName(providerName)
             ?: error("Couldn't find magnet URI provider named '$providerName'")
 
-        val magnetUri = magnetUriProvider.getMagnetUri(sourceUrl)
-        torrentIdToMagnetUri[torrentId] = magnetUri
-
-        return magnetUri
+        return runCatching { magnetUriProvider.getMagnetUri(sourceUrl) }
+            .fold(
+                onSuccess = {
+                    torrentIdToMagnetUri[torrentId] = it
+                    GetMagnetUriResult.Success(it)
+                },
+                onFailure = {
+                    if (it is CancellationException) throw it
+                    GetMagnetUriResult.Error(it)
+                },
+            )
     }
+}
+
+sealed interface GetMagnetUriResult {
+    data class Success(val magnetUri: String) : GetMagnetUriResult
+
+    data class Error(val cause: Throwable) : GetMagnetUriResult
 }
