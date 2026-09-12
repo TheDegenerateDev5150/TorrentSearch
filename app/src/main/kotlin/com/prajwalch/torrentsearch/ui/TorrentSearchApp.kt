@@ -35,6 +35,7 @@ private data class Search(
 
 @Serializable
 private data class TorrentDetails(
+    val id: String,
     val detailsPageUrl: String,
     val providerName: String,
 )
@@ -100,8 +101,8 @@ fun TorrentSearchApp(initialSearchQuery: String? = null) {
                 },
                 onNavigateToSettings = { navController.navigateToSettings() },
                 onNavigateToProviders = { navController.navigateToSearchProviders() },
-                onNavigateToTorrentDetails = { pageUrl, providerName ->
-                    navController.navigate(TorrentDetails(pageUrl, providerName))
+                onNavigateToTorrentDetails = { id, pageUrl, providerName ->
+                    navController.navigate(TorrentDetails(id, pageUrl, providerName))
                 },
             )
         }
@@ -114,8 +115,8 @@ fun TorrentSearchApp(initialSearchQuery: String? = null) {
             BookmarksScreen(
                 onNavigateBack = { navController.navigateUp() },
                 onNavigateToSettings = { navController.navigateToSettings() },
-                onNavigateToTorrentDetails = { pageUrl, providerName ->
-                    navController.navigate(TorrentDetails(pageUrl, providerName))
+                onNavigateToTorrentDetails = { id, pageUrl, providerName ->
+                    navController.navigate(TorrentDetails(id, pageUrl, providerName))
                 },
             )
         }
@@ -136,8 +137,8 @@ fun TorrentSearchApp(initialSearchQuery: String? = null) {
                 onNavigateBack = { navController.navigateUp() },
                 onNavigateToSettings = { navController.navigateToSettings() },
                 onNavigateToProviders = { navController.navigateToSearchProviders() },
-                onNavigateToTorrentDetails = { pageUrl, providerName ->
-                    navController.navigate(TorrentDetails(pageUrl, providerName))
+                onNavigateToTorrentDetails = { id, pageUrl, providerName ->
+                    navController.navigate(TorrentDetails(id, pageUrl, providerName))
                 },
             )
         }

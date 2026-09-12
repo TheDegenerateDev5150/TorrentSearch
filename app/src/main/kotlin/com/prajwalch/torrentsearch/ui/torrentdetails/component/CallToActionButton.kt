@@ -11,6 +11,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.OutlinedIconToggleButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
@@ -30,6 +31,8 @@ import com.prajwalch.torrentsearch.ui.theme.spaces
 fun CallToActionButton(
     onOpenMagnetLink: () -> Unit,
     onDownloadTorrentFile: () -> Unit,
+    isBookmarked: Boolean,
+    onToggleBookmark: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -37,6 +40,18 @@ fun CallToActionButton(
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        OutlinedIconToggleButton(checked = isBookmarked, onCheckedChange = onToggleBookmark) {
+            val iconResId = if (isBookmarked) {
+                R.drawable.ic_star_filled
+            } else {
+                R.drawable.ic_star
+            }
+
+            Icon(
+                painter = painterResource(iconResId),
+                contentDescription = null,
+            )
+        }
         DownloadTorrentFileButton(onClick = onDownloadTorrentFile)
         OpenMagnetLinkButton(onClick = onOpenMagnetLink)
     }

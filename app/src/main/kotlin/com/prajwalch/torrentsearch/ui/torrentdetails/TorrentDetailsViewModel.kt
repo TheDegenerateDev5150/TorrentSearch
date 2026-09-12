@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
+import com.prajwalch.torrentsearch.data.repository.BookmarkRepository
 import com.prajwalch.torrentsearch.data.repository.SettingsRepository
 import com.prajwalch.torrentsearch.domain.SearchProvidersGateway
 import com.prajwalch.torrentsearch.domain.TorrentFileDownloadResult
@@ -31,6 +32,7 @@ import java.io.OutputStream
 data class TorrentDetailsUiState(
     val state: TorrentDetailsState = TorrentDetailsState.Loading,
     val torrentFileState: TorrentFileState = TorrentFileState.Idle,
+    val isBookmarked: Boolean = false,
     val isRefreshing: Boolean = false,
     val blurNSFWImages: Boolean = true,
 )
@@ -58,11 +60,15 @@ sealed interface TorrentFileState {
 @KoinViewModel
 class TorrentDetailsViewModel(
     private val searchProvidersGateway: SearchProvidersGateway,
+    private val bookmarkRepository: BookmarkRepository,
     private val torrentFileDownloader: TorrentFileDownloader,
     private val connectivityChecker: ConnectivityChecker,
     settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    val torrentId: String = savedStateHandle["id"]
+        ?: error("TorrentDetailsViewModel can't function without torrent ID")
+
     val detailsPageUrl: String = savedStateHandle["detailsPageUrl"]
         ?: error("TorrentDetailsViewModel can't function without details page URL")
 
@@ -78,9 +84,17 @@ class TorrentDetailsViewModel(
         detailsState,
         torrentFileState,
         isRefreshing,
-        settingsRepository.blurNSFWImages,
-        ::TorrentDetailsUiState
-    ).stateIn(
+        bookmarkRepository.getBookmarkIds(),
+        settingsRepository.blurNSFWImages
+    ) { state, torrentFileState, isRefreshing, bookmarkIds, blurNSFWImages ->
+        TorrentDetailsUiState(
+            state = state,
+            torrentFileState = torrentFileState,
+            isBookmarked = torrentId in bookmarkIds,
+            isRefreshing = isRefreshing,
+            blurNSFWImages = blurNSFWImages
+        )
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = TorrentDetailsUiState(),
@@ -139,6 +153,30 @@ class TorrentDetailsViewModel(
         }
     } catch (e: Throwable) {
         TorrentDetailsState.SomethingWentWrong(e.message)
+    }
+
+    fun toggleBookmark(torrentDetails: TorrentDetails) {
+        viewModelScope.launch {
+            val bookmarked = uiState.value.isBookmarked
+
+            if (bookmarked) {
+                bookmarkRepository.deleteBookmarkById(torrentId)
+            } else {
+                bookmarkRepository.createAndAddBookmark(
+                    torrentId = torrentId,
+                    name = torrentDetails.name,
+                    magnetUri = torrentDetails.magnetUri,
+                    size = torrentDetails.size,
+                    seeders = torrentDetails.seeders,
+                    peers = torrentDetails.peers,
+                    providerName = providerName,
+                    uploadDate = torrentDetails.uploadDate,
+                    category = torrentDetails.category,
+                    descriptionPageUrl = detailsPageUrl,
+                    fileDownloadLink = torrentDetails.fileDownloadLink,
+                )
+            }
+        }
     }
 
     fun downloadTorrentFile(url: String?, infoHash: String, torrentName: String) {

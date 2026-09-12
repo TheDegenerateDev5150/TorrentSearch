@@ -73,7 +73,7 @@ fun SearchScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToProviders: () -> Unit,
-    onNavigateToTorrentDetails: (url: String, providerName: String) -> Unit,
+    onNavigateToTorrentDetails: (id: String, url: String, providerName: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SearchViewModel = koinViewModel(),
 ) {

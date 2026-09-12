@@ -36,7 +36,7 @@ fun TorrentActionsBottomSheet(
     onDismiss: () -> Unit,
     torrent: Torrent,
     onTorrentClientNotFound: () -> Unit,
-    onNavigateToDetails: (pageUrl: String, providerName: String) -> Unit,
+    onNavigateToDetails: (id: String, pageUrl: String, providerName: String) -> Unit,
     onShowSnackBar: (message: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TorrentActionsViewModel = koinViewModel(
@@ -109,7 +109,7 @@ fun TorrentActionsBottomSheet(
                     },
                     onOpenTorrentDetails = withDetailsPageUrl {
                         if (openTorrentDetailsInApp) {
-                            onNavigateToDetails(it, torrent.providerName)
+                            onNavigateToDetails(torrent.id, it, torrent.providerName)
                         } else {
                             uriHandler.openUri(it)
                         }

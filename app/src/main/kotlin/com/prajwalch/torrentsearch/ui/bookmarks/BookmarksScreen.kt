@@ -68,7 +68,7 @@ import org.koin.androidx.compose.koinViewModel
 fun BookmarksScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToTorrentDetails: (pageUrl: String, providerName: String) -> Unit,
+    onNavigateToTorrentDetails: (id: String, pageUrl: String, providerName: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BookmarksViewModel = koinViewModel(),
 ) {

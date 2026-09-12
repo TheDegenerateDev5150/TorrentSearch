@@ -1,7 +1,5 @@
 package com.prajwalch.torrentsearch.ui.torrentdetails
 
-import android.content.res.Configuration
-
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -45,7 +43,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,7 +53,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
@@ -282,6 +278,8 @@ fun TorrentDetailsScreen(
                                 snackbarHostState.showSnackbar(infoHashCopiedMessage)
                             }
                         },
+                        isBookmarked = uiState.isBookmarked,
+                        onToggleBookmark = { viewModel.toggleBookmark(torrentDetails) },
                         isRefreshing = uiState.isRefreshing,
                         onRefresh = viewModel::refreshDetails,
                         blurNSFWImage = uiState.blurNSFWImages,
@@ -358,6 +356,8 @@ private fun TorrentDetailsScreenContent(
     onOpenMagnetLink: () -> Unit,
     onDownloadTorrentFile: () -> Unit,
     onCopyInfoHash: () -> Unit,
+    isBookmarked: Boolean,
+    onToggleBookmark: (Boolean) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
@@ -387,6 +387,8 @@ private fun TorrentDetailsScreenContent(
                     isNSFW = details.isNSFW,
                     onOpenMagnetLink = onOpenMagnetLink,
                     onDownloadTorrentFile = onDownloadTorrentFile,
+                    isBookmarked = isBookmarked,
+                    onToggleBookmark = onToggleBookmark,
                     blurNSFWImage = blurNSFWImage,
                 )
 
@@ -425,51 +427,37 @@ private fun HeaderSection(
     isNSFW: Boolean,
     onOpenMagnetLink: () -> Unit,
     onDownloadTorrentFile: () -> Unit,
+    isBookmarked: Boolean,
+    onToggleBookmark: (Boolean) -> Unit,
     blurNSFWImage: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val headerSectionContent = remember(torrentName, posterUrl, isNSFW) {
-        movableContentOf {
-            posterUrl?.let {
-                if (isNSFW) {
-                    NsfwPosterImage(url = it, initialRevealed = !blurNSFWImage)
-                } else {
-                    PosterImage(url = it)
-                }
+    Column(
+        modifier = modifier.padding(horizontal = MaterialTheme.spaces.large),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.large),
+    ) {
+        posterUrl?.let {
+            if (isNSFW) {
+                NsfwPosterImage(url = it, initialRevealed = !blurNSFWImage)
+            } else {
+                PosterImage(url = it)
             }
+        }
 
-            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.large)) {
-                Column {
-                    if (isNSFW) NSFWBadge()
-                    Text(
-                        text = torrentName,
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-                CallToActionButton(
-                    onOpenMagnetLink = onOpenMagnetLink,
-                    onDownloadTorrentFile = onDownloadTorrentFile,
+        Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.large)) {
+            Column {
+                if (isNSFW) NSFWBadge()
+                Text(
+                    text = torrentName,
+                    style = MaterialTheme.typography.titleLarge,
                 )
             }
-        }
-    }
-
-    val configuration = LocalConfiguration.current
-    val isInPortraitMode = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-
-    if (isInPortraitMode) {
-        Column(
-            modifier = modifier.padding(horizontal = MaterialTheme.spaces.large),
-            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.large),
-        ) {
-            headerSectionContent()
-        }
-    } else {
-        Row(
-            modifier = modifier.padding(horizontal = MaterialTheme.spaces.large),
-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spaces.large),
-        ) {
-            headerSectionContent()
+            CallToActionButton(
+                onOpenMagnetLink = onOpenMagnetLink,
+                onDownloadTorrentFile = onDownloadTorrentFile,
+                isBookmarked = isBookmarked,
+                onToggleBookmark = onToggleBookmark,
+            )
         }
     }
 }
