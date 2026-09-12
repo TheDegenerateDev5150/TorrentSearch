@@ -17,7 +17,8 @@ import org.jsoup.nodes.TextNode
 
 import java.time.Instant
 
-class AnimeTosho(private val networkClient: NetworkClient) : SearchProvider,
+class AnimeTosho(private val networkClient: NetworkClient) :
+    SearchProvider,
     TorrentDetailsProvider {
     override val id = "animetosho"
     override val name = "AnimeTosho"
@@ -54,18 +55,19 @@ private class AnimeToshoResultsPageParser(
 
     /** Parses an individual result row into a [Torrent] object. */
     private fun parseEntryDiv(entryDiv: Element): Torrent? {
+        val anchor = entryDiv.selectFirst("div.link > a") ?: return null
+        val name = anchor.text()
+        val detailsPageUrl = anchor.attr("href").takeIf { it.isNotBlank() } ?: return null
+
         val links = entryDiv.selectFirst("div.links") ?: return null
         val magnetUri = links.selectFirst("""a[href^="magnet:"]""")?.attr("href") ?: return null
         val fileDownloadLink = links.selectFirst("a.dllink")?.attr("href")
 
         val torrentId = TorrentUtils.createTorrentId(
             providerId = providerId,
-            sourceId = TorrentUtils.getInfoHashFromMagnetUri(magnetUri),
+            sourceId = detailsPageUrl,
         )
 
-        val anchor = entryDiv.selectFirst("div.link > a") ?: return null
-        val name = anchor.text()
-        val descriptionPageUrl = anchor.attr("href").takeIf { it.isNotBlank() }
         val size = entryDiv.selectFirst("div.size")?.ownText()
         val (seeders, peers) = parseSeedsAndPeers(entryDiv)
         val uploadDate = parseUploadDate(entryDiv)
@@ -79,7 +81,7 @@ private class AnimeToshoResultsPageParser(
             providerName = providerName,
             uploadDate = uploadDate,
             category = Category.Anime,
-            descriptionPageUrl = descriptionPageUrl,
+            descriptionPageUrl = detailsPageUrl,
             magnetUriState = MagnetUriState.Available(magnetUri),
             fileDownloadLink = fileDownloadLink,
         )
