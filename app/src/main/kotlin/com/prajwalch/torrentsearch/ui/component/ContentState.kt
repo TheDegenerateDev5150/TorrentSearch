@@ -3,7 +3,6 @@ package com.prajwalch.torrentsearch.ui.component
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -69,7 +68,6 @@ fun ContentState(
         }
 
         Row(
-            modifier = Modifier.padding(vertical = MaterialTheme.spaces.extraLarge),
             horizontalArrangement = Arrangement.spacedBy(
                 space = MaterialTheme.spaces.small,
                 alignment = Alignment.CenterHorizontally
