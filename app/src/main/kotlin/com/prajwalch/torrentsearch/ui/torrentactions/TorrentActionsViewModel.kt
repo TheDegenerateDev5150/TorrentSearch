@@ -113,7 +113,7 @@ class TorrentActionsViewModel(
                     name = torrent.name,
                     magnetUri = magnetUri,
                     size = torrent.size,
-                    seeders = torrent.seeders,
+                    seeders = torrent.peers,
                     peers = torrent.seeders,
                     providerName = torrent.providerName,
                     uploadDate = torrent.uploadDate,
